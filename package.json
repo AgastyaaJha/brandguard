@@ -1,0 +1,1 @@
+{"name":"brandguard","version":"1.0.0","private":true,"scripts":{"test":"node --test test/engine.test.js","build":"node build.js"}}

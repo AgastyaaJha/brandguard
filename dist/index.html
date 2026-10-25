@@ -1,0 +1,1401 @@
+<title>BrandGuard</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Newsreader:wght@500;600&display=swap">
+<style>
+/* Layout: persistent top bar; a queue/insights/library workspace; the review screen is a two-column
+   editor (content left, findings and approvals right). All colour comes from tokens below. */
+:root {
+  --bg: #F2F5F7; --surface: #FFFFFF; --surface-2: #F7F9FA; --ink: #14202B; --muted: #566472; --line: #DAE1E7;
+  --accent: #0A6C74; --accent-ink: #FFFFFF; --accent-soft: #E2F1F2;
+  --blocker: #B3261E; --blocker-bg: #FCEBE9; --major: #A64B00; --major-bg: #FDEFE0;
+  --minor: #7A6200; --minor-bg: #FBF3D2; --info: #2B58A6; --info-bg: #E6EEFA;
+  --good: #1B7A4B; --good-bg: #E1F4EA; --ins: #D7F2E0; --del: #FBDADA;
+  --display: "Newsreader", Georgia, "Times New Roman", serif;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E151B; --surface: #16202A; --surface-2: #1B2733; --ink: #E7EDF2; --muted: #9DAAB7; --line: #2A3745;
+    --accent: #4CC2CC; --accent-ink: #06222A; --accent-soft: #15333A;
+    --blocker: #FF8A80; --blocker-bg: #3A1B1A; --major: #FFB070; --major-bg: #38250F;
+    --minor: #E8CF63; --minor-bg: #33290B; --info: #8DB4F5; --info-bg: #17284A;
+    --good: #6FD6A0; --good-bg: #123226; --ins: #14402A; --del: #4A1F1F; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E151B; --surface: #16202A; --surface-2: #1B2733; --ink: #E7EDF2; --muted: #9DAAB7; --line: #2A3745;
+  --accent: #4CC2CC; --accent-ink: #06222A; --accent-soft: #15333A;
+  --blocker: #FF8A80; --blocker-bg: #3A1B1A; --major: #FFB070; --major-bg: #38250F;
+  --minor: #E8CF63; --minor-bg: #33290B; --info: #8DB4F5; --info-bg: #17284A;
+  --good: #6FD6A0; --good-bg: #123226; --ins: #14402A; --del: #4A1F1F; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.5 var(--sans); }
+body, .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1320px; margin: 0 auto; padding-left: 0; padding-right: 0; }
+h1, h2, h3 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 28px; line-height: 1.15; } h2 { font-size: 21px; } h3 { font-size: 17px; }
+h4 { margin: 0; font-size: 14px; font-weight: 600; }
+p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-size: 12px; }
+.muted { color: var(--muted); }
+.sr { position: absolute; left: -9999px; }
+
+/* top bar */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--surface); border-bottom: 1px solid var(--line); margin: 0 calc(-1 * max(16px, env(safe-area-inset-left, 0px))) 0 calc(-1 * max(16px, env(safe-area-inset-right, 0px))); padding: 0 max(16px, env(safe-area-inset-left, 0px)); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); }
+.top-in { max-width: 1320px; margin: 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 10px 0; }
+.brand { display: flex; align-items: center; gap: 8px; font-family: var(--display); font-size: 20px; font-weight: 600; margin-right: 8px; background: none; border: 0; cursor: pointer; padding: 0; }
+.nav { display: flex; gap: 2px; flex-wrap: wrap; }
+.nav button { background: none; border: 0; padding: 7px 12px; border-radius: 6px; cursor: pointer; color: var(--muted); font-weight: 500; }
+.nav button:hover { background: var(--surface-2); color: var(--ink); }
+.nav button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
+.spacer { flex: 1; }
+.who { white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.who select { padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.badge-ai { font-size: 12px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface-2); color: var(--muted); cursor: pointer; }
+.badge-ai b { color: var(--good); font-weight: 600; }
+
+main { padding-block: 24px 64px; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+.page-head p { color: var(--muted); max-width: 70ch; margin-top: 4px; }
+
+/* controls */
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 13px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; font-weight: 500; }
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { color: var(--blocker); }
+.btn.sm { padding: 3px 9px; font-size: 13px; }
+.btn[disabled] { opacity: .5; cursor: not-allowed; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label, .lbl { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+input[type=text], input[type=date], input[type=number], select, textarea { padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); width: 100%; }
+textarea { font-family: var(--mono); font-size: 13px; line-height: 1.6; resize: vertical; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.chip { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 500; border: 1px solid var(--line); background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.chip.btn-chip { cursor: pointer; } .chip.on { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+.st-draft { } .st-in_review { background: var(--info-bg); color: var(--info); border-color: transparent; }
+.st-changes_requested { background: var(--major-bg); color: var(--major); border-color: transparent; }
+.st-approved, .st-published { background: var(--good-bg); color: var(--good); border-color: transparent; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+.grid { display: grid; gap: 16px; }
+.g2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); }
+
+/* queue */
+.list { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.item { display: grid; grid-template-columns: 1fr auto auto; gap: 14px; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line); cursor: pointer; background: none; border-left: 0; border-right: 0; border-top: 0; text-align: left; width: 100%; }
+.item:last-child { border-bottom: 0; } .item:hover { background: var(--surface-2); }
+.item h3 { font-size: 16px; } .item .meta { color: var(--muted); font-size: 13px; display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px; }
+.score { font-family: var(--mono); font-weight: 600; min-width: 46px; text-align: center; padding: 4px 8px; border-radius: 6px; }
+.sc-good { background: var(--good-bg); color: var(--good); } .sc-mid { background: var(--minor-bg); color: var(--minor); } .sc-bad { background: var(--blocker-bg); color: var(--blocker); }
+.todo { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.todo .card { flex: 1 1 220px; padding: 12px 14px; } .todo b { font-family: var(--display); font-size: 26px; display: block; line-height: 1.1; }
+
+/* review screen */
+.review { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 960px) { .review { grid-template-columns: minmax(0, 1fr); } }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+.tabs button { background: none; border: 0; padding: 8px 12px; cursor: pointer; border-bottom: 2px solid transparent; color: var(--muted); font-weight: 500; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-color: var(--accent); }
+.doc { white-space: pre-wrap; word-wrap: break-word; overflow-wrap: anywhere; font-size: 15px; line-height: 1.75; padding: 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; min-height: 160px; }
+.doc.code { font-family: var(--mono); font-size: 13px; }
+mark.m { background: transparent; color: inherit; border-radius: 3px; cursor: pointer; text-decoration: underline wavy; text-underline-offset: 3px; text-decoration-thickness: 1.5px; padding: 1px 0; }
+mark.m.blocker { background: var(--blocker-bg); text-decoration-color: var(--blocker); } mark.m.major { background: var(--major-bg); text-decoration-color: var(--major); }
+mark.m.minor { background: var(--minor-bg); text-decoration-color: var(--minor); } mark.m.info { background: var(--info-bg); text-decoration-color: var(--info); }
+mark.m.done { background: transparent; text-decoration: underline dotted; opacity: .7; } mark.m.active { outline: 2px solid var(--accent); }
+.scorebar { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding: 12px 16px; margin-bottom: 12px; }
+.ring { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-weight: 600; font-size: 18px; }
+.sev-count { display: flex; gap: 6px; flex-wrap: wrap; }
+.sevchip { padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+.sevchip.blocker, .sev.blocker { background: var(--blocker-bg); color: var(--blocker); } .sevchip.major, .sev.major { background: var(--major-bg); color: var(--major); }
+.sevchip.minor, .sev.minor { background: var(--minor-bg); color: var(--minor); } .sevchip.info, .sev.info { background: var(--info-bg); color: var(--info); }
+.sev { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; padding: 2px 7px; border-radius: 4px; }
+.findings { display: flex; flex-direction: column; gap: 10px; }
+.f { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; border-left-width: 4px; display: flex; flex-direction: column; gap: 8px; }
+.f.blocker { border-left-color: var(--blocker); } .f.major { border-left-color: var(--major); } .f.minor { border-left-color: var(--minor); } .f.info { border-left-color: var(--info); }
+.f.flash { box-shadow: 0 0 0 2px var(--accent); }
+.f.done { opacity: .72; }
+.f header { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.f .match { font-family: var(--mono); font-size: 12px; background: var(--surface-2); padding: 4px 8px; border-radius: 4px; overflow-wrap: anywhere; margin: 0; }
+.ba { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; font-size: 13px; }
+.ba del { background: var(--del); text-decoration: line-through; padding: 0 4px; border-radius: 3px; } .ba ins { background: var(--ins); text-decoration: none; padding: 0 4px; border-radius: 3px; }
+.sugg { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.f details { font-size: 13px; color: var(--muted); } .f summary { cursor: pointer; }
+.f details .src { margin-top: 6px; padding: 8px 10px; background: var(--surface-2); border-radius: 6px; color: var(--ink); }
+.acts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.decided { font-size: 13px; color: var(--muted); }
+.panel-t { display: flex; justify-content: space-between; align-items: center; margin: 4px 0 10px; gap: 8px; flex-wrap: wrap; }
+.approvals { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.ap { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--line); display: inline-block; } .dot.ok { background: var(--good); } .dot.no { background: var(--major); }
+.cm { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); } .cm .h { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.diff { white-space: pre-wrap; overflow-wrap: anywhere; padding: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; line-height: 1.7; }
+.diff ins { background: var(--ins); text-decoration: none; } .diff del { background: var(--del); }
+.preview { width: 100%; height: 220px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.imgbox { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-start; padding: 14px; } .imgbox img { max-width: min(100%, 320px); border-radius: 8px; border: 1px solid var(--line); }
+.sw { display: inline-block; width: 36px; height: 36px; border-radius: 6px; border: 1px solid var(--line); vertical-align: middle; }
+
+/* insights */
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 18px; }
+.kpi { padding: 14px 16px; } .kpi b { font-family: var(--display); font-size: 32px; line-height: 1.1; display: block; font-variant-numeric: tabular-nums; } .kpi span { color: var(--muted); font-size: 13px; }
+.bars { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.bar { display: grid; grid-template-columns: minmax(120px, 42%) 1fr 36px; gap: 10px; align-items: center; font-size: 13px; }
+.bar .t { height: 14px; background: var(--surface-2); border-radius: 4px; overflow: hidden; } .bar .t i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+.bar .n { font-variant-numeric: tabular-nums; text-align: right; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; } th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; } th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.tw { overflow-x: auto; }
+.note { background: var(--info-bg); color: var(--ink); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.warn { background: var(--major-bg); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 9px 16px; border-radius: 8px; z-index: 20; }
+.prose p { margin: 0 0 10px; max-width: 75ch; } .prose ul { margin: 0 0 12px; padding-left: 20px; max-width: 75ch; } .prose li { margin-bottom: 4px; }
+@media (prefers-reduced-motion: no-preference) { .f, .btn { transition: box-shadow .15s, filter .15s, border-color .15s; } }
+@media (max-width: 600px) { .item { grid-template-columns: 1fr auto; } .item .score { display: none; } }
+
+</style>
+<div id="app"></div>
+<script>
+/* BrandGuard review engine.
+ * Pure, deterministic, dependency-free. Runs in the browser and in Node.
+ * Every finding cites the guideline or approved fact that produced it.
+ * No network calls, no model calls: content never leaves the process.
+ */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.BrandEngine = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  var SEV_ORDER = ['blocker', 'major', 'minor', 'info'];
+  var SEV_WEIGHT = { blocker: 25, major: 10, minor: 4, info: 1 };
+
+  // ---------- helpers ----------
+  function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+  function blank(m) { return m.replace(/[^\n]/g, ' '); }
+
+  function maskFor(format, body) {
+    var t = body;
+    if (format === 'html') {
+      t = t.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<!--[\s\S]*?-->/gi, blank);
+      t = t.replace(/<[^>]*>/g, blank);
+      t = t.replace(/&[a-zA-Z#0-9]+;/g, blank);
+    } else if (format === 'markdown') {
+      t = t.replace(/```[\s\S]*?```/g, blank).replace(/`[^`\n]*`/g, blank);
+      t = t.replace(/\]\([^)\n]*\)/g, blank);
+      t = t.replace(/^[ \t]{0,3}#{1,6}[ \t]/gm, blank);
+    }
+    return t.replace(/https?:\/\/[^\s)>"']+/g, blank);
+  }
+
+  function matchCase(src, repl) {
+    if (!repl) return repl;
+    if (src.length > 1 && src === src.toUpperCase() && /[A-Z]/.test(src)) return repl.toUpperCase();
+    var c = src.charAt(0);
+    if (c !== c.toLowerCase()) return repl.charAt(0).toUpperCase() + repl.slice(1);
+    return repl;
+  }
+
+  function sourceOf(kit, id) {
+    var g = (kit.guidelines || []).filter(function (x) { return x.id === id; })[0];
+    if (g) return { type: 'guideline', id: g.id, title: g.title, quote: g.text, confidential: !!g.confidential };
+    var f = (kit.facts || []).filter(function (x) { return x.id === id; })[0];
+    if (f) return { type: 'fact', id: f.id, title: f.label, quote: f.statement, asOf: f.asOf, origin: f.source, confidential: false };
+    return { type: 'guideline', id: id, title: id, quote: '' };
+  }
+
+  function parseNum(s, suffix) {
+    var n = parseFloat(String(s).replace(/,/g, ''));
+    if (suffix && /k/i.test(suffix)) n *= 1000;
+    return n;
+  }
+  function fmtNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  // colour utils
+  var NAMED = { white: '#ffffff', black: '#000000' };
+  function parseColor(v) {
+    v = String(v).trim().toLowerCase();
+    if (NAMED[v]) v = NAMED[v];
+    var m = /^#([0-9a-f]{3})$/.exec(v);
+    if (m) return m[1].split('').map(function (c) { return parseInt(c + c, 16); });
+    m = /^#([0-9a-f]{6})$/.exec(v);
+    if (m) return [0, 2, 4].map(function (i) { return parseInt(m[1].substr(i, 2), 16); });
+    return null;
+  }
+  function toHex(rgb) { return '#' + rgb.map(function (x) { return ('0' + Math.round(x).toString(16)).slice(-2); }).join(''); }
+  function lum(rgb) {
+    var a = rgb.map(function (v) { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+  }
+  function contrast(a, b) {
+    var l1 = lum(a), l2 = lum(b);
+    return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+  }
+  function dist(a, b) { return Math.sqrt(Math.pow(a[0] - b[0], 2) + Math.pow(a[1] - b[1], 2) + Math.pow(a[2] - b[2], 2)); }
+  function isNeutral(rgb) { return Math.max.apply(null, rgb) - Math.min.apply(null, rgb) < 18; }
+  function paletteRgb(kit) {
+    return (kit.palette || []).map(function (p) { return { name: p.name, hex: p.hex, rgb: parseColor(p.hex) }; }).filter(function (p) { return p.rgb; });
+  }
+  function nearestPalette(kit, rgb) {
+    var best = null, bd = 1e9;
+    paletteRgb(kit).forEach(function (p) { var d = dist(p.rgb, rgb); if (d < bd) { bd = d; best = p; } });
+    return best ? { entry: best, d: bd } : null;
+  }
+
+  function syll(w) {
+    w = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (!w) return 0;
+    if (w.length <= 3) return 1;
+    w = w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '').replace(/^y/, '');
+    var m = w.match(/[aeiouy]{1,2}/g);
+    return Math.max(1, m ? m.length : 1);
+  }
+  function words(t) { return t.match(/[A-Za-z0-9][A-Za-z0-9'’-]*/g) || []; }
+  function flesch(t) {
+    var w = words(t); if (w.length < 5) return null;
+    var s = (t.match(/[.!?]+(\s|$)/g) || []).length || 1;
+    var sy = w.reduce(function (a, x) { return a + syll(x); }, 0);
+    return 206.835 - 1.015 * (w.length / s) - 84.6 * (sy / w.length);
+  }
+
+  // ---------- review ----------
+  function review(input, kit, opts) {
+    opts = opts || {};
+    var today = opts.today || new Date().toISOString().slice(0, 10);
+    var raw = input.body || '';
+    var format = input.format || 'text';
+    var channel = input.channel || 'web';
+    var masked = maskFor(format, raw);
+    var meta = input.imageMeta || null;
+    var out = [];
+
+    function add(f) {
+      f.severity = f.severity || 'minor';
+      f.start = f.start == null ? -1 : f.start;
+      f.end = f.end == null ? -1 : f.end;
+      f.match = f.start >= 0 ? raw.slice(f.start, f.end) : (f.match || '');
+      f.source = f.source || null;
+      out.push(f);
+    }
+    function rx(p, flags) { return new RegExp(p, flags || 'gi'); }
+    function each(text, re, fn) {
+      var m; re.lastIndex = 0;
+      while ((m = re.exec(text))) { fn(m); if (m[0].length === 0) re.lastIndex++; }
+    }
+
+    // 1. confidentiality (raw text, strongest rule)
+    (kit.confidentialTerms || []).forEach(function (t) {
+      each(raw, rx('\\b' + escapeRe(t) + '\\b'), function (m) {
+        add({ ruleId: 'conf.codename', category: 'confidentiality', severity: 'blocker',
+          title: 'Unreleased or confidential name', start: m.index, end: m.index + m[0].length,
+          message: 'This name is on the confidential list. Publishing it would disclose unannounced work.',
+          guidance: 'Remove it, or get written sign-off from Product Marketing and Legal and have a Reviewer waive this finding.',
+          fix: { type: 'replace', text: '', label: 'Remove it' },
+          preserves: 'Removing only the name keeps the rest of the sentence; reword if it no longer reads well.',
+          source: sourceOf(kit, 'G-CONF-1') });
+      });
+    });
+    each(raw, /\b(confidential|internal use only|internal only|do not distribute|not for external (?:use|distribution))\b/gi, function (m) {
+      add({ ruleId: 'conf.marker', category: 'confidentiality', severity: 'blocker', title: 'Internal-only marking found',
+        start: m.index, end: m.index + m[0].length,
+        message: 'Text marked "' + m[0] + '" suggests this was copied from an internal document.',
+        guidance: 'Check the source document is cleared for external use, then delete the marking.',
+        fix: { type: 'replace', text: '', label: 'Remove marking' }, preserves: 'Only the marking is removed.', source: sourceOf(kit, 'G-CONF-1') });
+    });
+    each(raw, /\b(?:sk|pk|api|key|token)[-_][A-Za-z0-9]{16,}\b/g, function (m) {
+      add({ ruleId: 'conf.secret', category: 'confidentiality', severity: 'blocker', title: 'Possible secret or API key',
+        start: m.index, end: m.index + m[0].length, message: 'This looks like a credential. Credentials must never appear in published content.',
+        guidance: 'Remove it and rotate the key if it was ever shared.', fix: { type: 'replace', text: '', label: 'Remove' },
+        preserves: 'Nothing else changes.', source: sourceOf(kit, 'G-CONF-1') });
+    });
+    var okDomains = (kit.settings && kit.settings.publicEmailDomains) || [];
+    each(raw, /[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, function (m) {
+      if (okDomains.indexOf(m[1].toLowerCase()) === -1)
+        add({ ruleId: 'conf.email', category: 'confidentiality', severity: 'major', title: 'Non-public email address',
+          start: m.index, end: m.index + m[0].length,
+          message: 'Only approved public addresses may appear in content (' + okDomains.join(', ') + ').',
+          guidance: 'Use a shared mailbox such as hello@' + (okDomains[0] || 'company.example') + '.',
+          preserves: 'Contact intent is kept by pointing to the shared mailbox.', source: sourceOf(kit, 'G-CONF-1') });
+    });
+
+    // 2. brand and product names
+    each(masked, /\b(lumio)\b/gi, function (m) {
+      var before = masked.charAt(m.index - 1), after = masked.charAt(m.index + m[0].length), after2 = masked.charAt(m.index + m[0].length + 1);
+      if (/[\/@.\-]/.test(before) || (after === '.' && /[a-z]/i.test(after2))) return;
+      if (m[0] !== 'Lumio')
+        add({ ruleId: 'brand.name-case', category: 'terminology', severity: 'major', title: 'Brand name spelled incorrectly',
+          start: m.index, end: m.index + m[0].length, message: 'Our name is always written "Lumio" with a capital L and lowercase letters.',
+          fix: { type: 'replace', text: 'Lumio', label: 'Use "Lumio"' }, preserves: 'Meaning unchanged; only the spelling is corrected.', source: sourceOf(kit, 'G-NAME-1') });
+    });
+    each(masked, /\bLumio\s+(hub|plus)\b/gi, function (m) {
+      var good = 'Lumio ' + m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+      if (m[0] !== good)
+        add({ ruleId: 'brand.product-case', category: 'terminology', severity: 'minor', title: 'Product name capitalisation',
+          start: m.index, end: m.index + m[0].length, message: 'Product names are written "Lumio Hub" and "Lumio Plus".',
+          fix: { type: 'replace', text: good, label: 'Use "' + good + '"' }, preserves: 'Meaning unchanged.', source: sourceOf(kit, 'G-NAME-1') });
+    });
+
+    // 3. terminology, retired names, hype and jargon
+    (kit.terms || []).forEach(function (t) {
+      var re = rx(t.pattern || '\\b' + escapeRe(t.avoid) + '\\b');
+      each(masked, re, function (m) {
+        var rep = t.prefer ? matchCase(m[0], t.prefer) : null;
+        if (rep && t.pluralize && /s$/i.test(m[0]) && !/s$/i.test(t.prefer)) rep += /[A-Z]$/.test(m[0]) ? 'S' : 's';
+        add({ ruleId: 'term.' + t.id, category: t.category || 'terminology', severity: t.severity || 'minor',
+          title: t.prefer ? 'Use "' + t.prefer + '" instead of "' + t.avoid + '"' : 'Avoid "' + t.avoid + '"',
+          start: m.index, end: m.index + m[0].length, message: t.reason,
+          fix: rep ? { type: 'replace', text: rep, label: 'Change to "' + rep + '"' } : null,
+          guidance: rep ? '' : t.guidance,
+          preserves: rep ? 'Same sentence structure, with the approved wording.' : '', source: sourceOf(kit, t.guideline) });
+      });
+    });
+
+    // 4. claims
+    var approved = (kit.approvedClaims || []).filter(function (c) { return !c.expires || c.expires >= today; });
+    function coveredByEvidence(s, e) {
+      return approved.some(function (c) {
+        var re = rx(escapeRe(c.phrase)), hit = false;
+        each(raw, re, function (m) { if (s >= m.index && e <= m.index + m[0].length) hit = true; });
+        return hit;
+      });
+    }
+    (kit.claims || []).forEach(function (c) {
+      each(masked, rx(c.pattern), function (m) {
+        var s = m.index, e = m.index + m[0].length;
+        if (coveredByEvidence(s, e)) return;
+        var rep = c.prefer ? matchCase(m[0], m[0].replace(rx(c.pattern, 'i'), c.prefer)) : null;
+        add({ ruleId: 'claim.' + c.id, category: 'claims', severity: c.severity || 'major', title: c.title,
+          start: s, end: e, message: c.reason, guidance: c.guidance || '',
+          fix: rep ? { type: 'replace', text: rep, label: 'Soften to "' + rep + '"' } : null,
+          preserves: rep ? 'Keeps the positive message but drops the claim we cannot evidence.' : '',
+          source: sourceOf(kit, c.guideline) });
+      });
+    });
+    (kit.competitors || []).forEach(function (n) {
+      each(masked, rx('\\b' + escapeRe(n) + '\\b'), function (m) {
+        add({ ruleId: 'claim.competitor', category: 'claims', severity: 'blocker', title: 'Competitor named',
+          start: m.index, end: m.index + m[0].length,
+          message: 'Naming a competitor, especially in a comparison, needs Legal approval first.',
+          guidance: 'Describe our strengths on their own, e.g. "works with 300+ devices", without naming others.',
+          preserves: '', source: sourceOf(kit, 'G-CLAIM-4') });
+      });
+    });
+
+    // 4b. approved facts
+    var usedFacts = {};
+    (kit.facts || []).forEach(function (f) {
+      (f.regexes || []).forEach(function (r) {
+        each(masked, rx(r.re), function (m) {
+          if (f.type === 'savings' && r.constant) {
+            usedFacts[f.id] = true;
+            add({ ruleId: 'fact.' + f.id, category: 'claims', severity: 'major', title: 'Savings claim not supported',
+              start: m.index, end: m.index + m[0].length,
+              message: 'Claims like "' + m[0] + '" imply about ' + r.constant + '% savings. Our approved figure is ' + f.value + '%.',
+              guidance: 'Say "an average of ' + f.value + '% lower energy bills".', fix: null, source: sourceOf(kit, f.id) });
+            return;
+          }
+          var raw1 = m[r.num];
+          if (raw1 == null) return;
+          // locate the number token inside the match (price: the last occurrence, after the product name)
+          var idx = r.prod ? m[0].lastIndexOf(raw1) : m[0].indexOf(raw1);
+          var ns = m.index + idx;
+          var suffix = r.suffix ? m[r.suffix] : '';
+          var token = raw1 + (suffix || '');
+          var ne = ns + token.length;
+          var pctLen = 0;
+          if (f.type === 'savings') { var pm = /^\s?%/.exec(masked.slice(ne)); pctLen = pm ? pm[0].length : 0; }
+          var n = parseNum(raw1, suffix);
+          usedFacts[f.id] = true;
+          var pre = masked.slice(Math.max(0, ns - 14), ns);
+          var hasQual = /(over|more than|nearly|almost|about|average|up to|around)\s*$/i.test(pre);
+          var prod = r.prod ? (m[r.prod] || '').toLowerCase() : null;
+          if (f.type === 'price') {
+            var want = f.products[prod];
+            if (want != null && Math.abs(n - want) > 0.001)
+              add({ ruleId: 'fact.' + f.id, category: 'facts', severity: 'major', title: 'Price differs from approved price',
+                start: ns, end: ne, message: 'Lumio ' + prod.charAt(0).toUpperCase() + prod.slice(1) + ' is approved at $' + want + ' (' + f.asOf + ').',
+                fix: { type: 'replace', text: String(want), label: 'Use $' + want }, preserves: 'Offer wording unchanged; only the figure is corrected.', source: sourceOf(kit, f.id) });
+            return;
+          }
+          if (f.type === 'exact') {
+            if (Math.abs(n - f.value) > 0.001)
+              add({ ruleId: 'fact.' + f.id, category: 'facts', severity: 'major', title: f.label + ' does not match approved fact',
+                start: ns, end: ne, message: 'Approved: ' + f.statement,
+                fix: { type: 'replace', text: String(f.value), label: 'Use ' + f.value }, preserves: 'Only the figure changes.', source: sourceOf(kit, f.id) });
+            return;
+          }
+          // cap (count or percent)
+          var pct = f.type === 'savings';
+          if (n > f.value) {
+            var txt = pct ? (hasQual && /average/i.test(pre) ? f.value + '%' : 'an average of ' + f.value + '%') : (hasQual ? fmtNum(f.value) : 'more than ' + fmtNum(f.value));
+            add({ ruleId: 'fact.' + f.id, category: 'claims', severity: 'major', title: pct ? 'Savings figure above approved figure' : 'Figure above approved fact',
+              start: ns, end: ne + pctLen,
+              message: 'Content says ' + token + (pct ? '%' : '') + '. Approved: ' + f.statement + ' (' + f.asOf + ').',
+              fix: { type: 'replace', text: txt, label: 'Use "' + txt + '"' }, preserves: 'Keeps the point (a big number) using the figure we can prove.', source: sourceOf(kit, f.id) });
+          } else if (!pct && n < f.value * 0.97) {
+            add({ ruleId: 'fact.' + f.id + '.stale', category: 'facts', severity: 'minor', title: 'Figure may be out of date',
+              start: ns, end: ne, message: 'Content says ' + token + '; the current approved figure is ' + fmtNum(f.value) + ' (' + f.asOf + ').',
+              fix: { type: 'replace', text: hasQual ? fmtNum(f.value) : 'more than ' + fmtNum(f.value), label: 'Update to ' + fmtNum(f.value) },
+              preserves: 'Same claim with the current number.', source: sourceOf(kit, f.id) });
+          }
+        });
+      });
+    });
+    // expired fact sources
+    (kit.facts || []).forEach(function (f) {
+      if (usedFacts[f.id] && f.expires && f.expires < today) {
+        var first = out.filter(function (x) { return x.ruleId.indexOf('fact.' + f.id) === 0; })[0];
+        add({ ruleId: 'fact.' + f.id + '.expired', category: 'facts', severity: 'minor', title: 'Approved fact has expired',
+          start: first ? first.start : 0, end: first ? first.end : 0, match: first ? '' : '',
+          message: '"' + f.label + '" was last confirmed ' + f.asOf + ' and expired on ' + f.expires + '. Ask the fact owner to reconfirm before publishing.',
+          guidance: 'Owner: ' + (f.owner || 'Brand team') + '.', source: sourceOf(kit, f.id) });
+      }
+    });
+    // savings disclaimer
+    (kit.facts || []).forEach(function (f) {
+      if (f.disclaimer && usedFacts[f.id] && !rx(f.disclaimer.require, 'i').test(raw)) {
+        add({ ruleId: 'msg.disclaimer.' + f.id, category: 'messaging', severity: 'major', title: 'Required disclaimer missing',
+          message: 'Savings claims must carry: "' + f.disclaimer.append + '"',
+          fix: { type: 'append', text: appendFor(format, f.disclaimer.append), label: 'Add disclaimer' },
+          preserves: 'Adds a line at the end; your copy is untouched.', source: sourceOf(kit, 'G-CLAIM-3') });
+      }
+    });
+
+    function appendFor(fmt, t) {
+      if (fmt === 'html') return '\n<p><small>' + t + '</small></p>';
+      if (fmt === 'markdown') return '\n\n*' + t + '*';
+      return '\n\n' + t;
+    }
+
+    // 5. required elements
+    (kit.requirements || []).forEach(function (r) {
+      if (r.channels && r.channels.indexOf(channel) === -1) return;
+      if (rx(r.when, 'i').test(raw) && !rx(r.require, 'i').test(raw)) {
+        var m = rx(r.when, 'i').exec(raw);
+        add({ ruleId: 'msg.' + r.id, category: 'messaging', severity: r.severity || 'major', title: r.title,
+          start: r.when === '.' ? -1 : m.index, end: r.when === '.' ? -1 : m.index + m[0].length, message: r.reason,
+          fix: { type: 'append', text: appendFor(format, r.append), label: 'Add required line' },
+          preserves: 'Adds a line at the end only.', source: sourceOf(kit, r.guideline) });
+      }
+    });
+    var wc = words(masked).length;
+    if (wc > 80 && (kit.pillars || []).length) {
+      var hit = (kit.pillars || []).some(function (p) { return p.keywords.some(function (k) { return rx('\\b' + escapeRe(k)).test(masked); }); });
+      if (!hit) add({ ruleId: 'msg.pillars', category: 'messaging', severity: 'minor', title: 'No key message pillar found', confidence: 0.5,
+        message: 'Long-form content should support at least one pillar: ' + kit.pillars.map(function (p) { return p.name; }).join(', ') + '. This check is heuristic.',
+        guidance: 'If the piece is intentionally off-message (e.g. a hiring post), dismiss with a reason; that helps us improve the guideline.',
+        source: sourceOf(kit, 'G-MSG-1') });
+    }
+
+    // 6. tone and language
+    var maxEx = (kit.settings && kit.settings.maxExclaim) || 1, exN = 0;
+    each(masked, /!+/g, function (m) {
+      exN++;
+      if (exN > maxEx || m[0].length > 1)
+        add({ ruleId: 'tone.exclaim', category: 'tone', severity: 'minor', title: 'Too many exclamation marks',
+          start: m.index, end: m.index + m[0].length, message: 'Our voice is warm and confident, not shouty. One exclamation mark per piece is the limit.',
+          fix: { type: 'replace', text: '.', label: 'Use a full stop' }, preserves: 'Enthusiasm stays in the words instead of the punctuation.', source: sourceOf(kit, 'G-TONE-1') });
+    });
+    var acr = (kit.acronyms || []).map(function (a) { return a.toUpperCase(); });
+    each(masked, /\b[A-Z]{3,}(?:[ \t]+[A-Z]{3,})*\b/g, function (m) {
+      var parts = m[0].split(/\s+/);
+      if (parts.every(function (p) { return acr.indexOf(p) > -1 || p === 'LUMIO'; })) return;
+      var fixed = m[0].toLowerCase();
+      add({ ruleId: 'tone.caps', category: 'tone', severity: 'minor', title: 'ALL CAPS text',
+        start: m.index, end: m.index + m[0].length, message: 'Capitals read as shouting and are harder for screen-reader and dyslexic users to parse.',
+        fix: { type: 'replace', text: matchCase('A', fixed), label: 'Use normal case' }, preserves: 'Same words; emphasis can come from bold instead.',
+        source: sourceOf(kit, 'G-ACC-4') });
+    });
+    var emoN = 0, maxEmo = (kit.settings && kit.settings.maxEmoji) || 2;
+    try {
+      each(masked, /\p{Extended_Pictographic}/gu, function (m) {
+        emoN++;
+        if (emoN === maxEmo + 1)
+          add({ ruleId: 'tone.emoji', category: 'tone', severity: 'info', title: 'Emoji overuse', start: m.index, end: m.index + m[0].length,
+            message: 'Use at most ' + maxEmo + ' emoji per piece.', fix: { type: 'replace', text: '', label: 'Remove' }, preserves: 'Text is unchanged.', source: sourceOf(kit, 'G-TONE-1') });
+      });
+    } catch (e) { /* old engines without \p support */ }
+
+    var fe = flesch(masked);
+    var minEase = (kit.settings && kit.settings.minReadingEase) || 50;
+    if (fe != null && wc >= 40 && fe < minEase)
+      add({ ruleId: 'tone.reading-ease', category: 'language', severity: 'minor', confidence: 0.6, title: 'Reading level is high',
+        message: 'Reading ease is ' + Math.round(fe) + ' (target ' + minEase + '+). Shorter words and sentences help every reader.',
+        guidance: 'Split long sentences and swap long words for short ones. This is a heuristic score.', source: sourceOf(kit, 'G-TONE-2') });
+    var maxLen = (kit.settings && kit.settings.maxSentenceWords) || 28;
+    each(masked, /[^.!?\n]+[.!?]*/g, function (m) {
+      var n = words(m[0]).length;
+      if (n > maxLen) {
+        var lead = m[0].length - m[0].replace(/^\s+/, '').length;
+        add({ ruleId: 'tone.long-sentence', category: 'language', severity: 'minor', title: 'Sentence is very long (' + n + ' words)',
+          start: m.index + lead, end: m.index + m[0].replace(/\s+$/, '').length, message: 'Sentences over ' + maxLen + ' words are hard to follow.',
+          guidance: 'Split at a conjunction or after the first clause.', source: sourceOf(kit, 'G-TONE-2') });
+      }
+    });
+
+    // 7. channel specifics
+    if (channel === 'social') {
+      var plain = masked.replace(/\s+$/, '');
+      if (plain.length > 280)
+        add({ ruleId: 'msg.social-length', category: 'messaging', severity: 'minor', title: 'Post is over 280 characters',
+          message: 'This post is ' + plain.length + ' characters. Most networks truncate at 280.', guidance: 'Cut the second sentence or move detail to a linked page.', source: sourceOf(kit, 'G-MSG-1') });
+      var tags = [];
+      each(masked, /(^|\s)(#[A-Za-z][A-Za-z0-9]*)/g, function (m) { tags.push({ t: m[2], i: m.index + m[1].length }); });
+      if (tags.length > 3)
+        add({ ruleId: 'msg.hashtags', category: 'messaging', severity: 'info', title: 'More than 3 hashtags', start: tags[3].i, end: tags[3].i + tags[3].t.length,
+          message: 'Use at most 3 hashtags.', fix: { type: 'replace', text: '', label: 'Remove' }, preserves: 'Post text is untouched.', source: sourceOf(kit, 'G-MSG-1') });
+      tags.forEach(function (h) {
+        if (h.t.length > 10 && h.t === h.t.toLowerCase())
+          add({ ruleId: 'a11y.hashtag-case', category: 'accessibility', severity: 'minor', title: 'Hashtag needs CamelCase',
+            start: h.i, end: h.i + h.t.length, message: 'Screen readers read all-lowercase hashtags as one unintelligible word.',
+            guidance: 'Write it as ' + h.t.replace(/(^#)(.)/, function (a, b, c) { return b + c.toUpperCase(); }) + ' with each word capitalised.', source: sourceOf(kit, 'G-ACC-5') });
+      });
+    }
+
+    // 8. accessibility + visual (markup)
+    if (format === 'html') {
+      each(raw, /<img\b[^>]*>/gi, function (m) {
+        var alt = /\balt\s*=\s*("([^"]*)"|'([^']*)')/i.exec(m[0]);
+        if (!alt) {
+          add({ ruleId: 'a11y.alt-missing', category: 'accessibility', severity: 'major', title: 'Image has no alt text', start: m.index, end: m.index + m[0].length,
+            message: 'People using screen readers get nothing from this image.', guidance: 'Describe what the image shows and why it is there.',
+            fix: { type: 'replace', text: m[0].replace(/<img\b/i, '<img alt="{{input}}"'), label: 'Add alt text', input: { label: 'Alt text', placeholder: 'e.g. Lumio Hub on a kitchen wall showing today’s energy use' } },
+            preserves: 'The image itself is unchanged.', source: sourceOf(kit, 'G-ACC-1') });
+        } else if (!(alt[2] || alt[3] || '').trim() && !/role\s*=\s*["']presentation/i.test(m[0])) {
+          add({ ruleId: 'a11y.alt-missing', category: 'accessibility', severity: 'major', title: 'Image alt text is empty', start: m.index, end: m.index + m[0].length,
+            message: 'Empty alt is only correct for purely decorative images.', guidance: 'Describe the image, or mark it decorative with role="presentation".',
+            fix: { type: 'replace', text: m[0].replace(/\balt\s*=\s*("[^"]*"|'[^']*')/i, 'alt="{{input}}"'), label: 'Add alt text', input: { label: 'Alt text', placeholder: 'Describe the image' } },
+            preserves: 'The image itself is unchanged.', source: sourceOf(kit, 'G-ACC-1') });
+        } else if (/^(image|photo|picture|img|graphic)$/i.test((alt[2] || alt[3] || '').trim()) || /\.(png|jpe?g|gif|svg|webp)$/i.test(alt[2] || alt[3] || '')) {
+          add({ ruleId: 'a11y.alt-weak', category: 'accessibility', severity: 'minor', title: 'Alt text is not descriptive', start: m.index, end: m.index + m[0].length,
+            message: 'Alt text such as "image" or a file name does not tell the reader anything.', guidance: 'Describe the content and purpose.', source: sourceOf(kit, 'G-ACC-1') });
+        }
+      });
+      each(raw, /<a\b[^>]*>([\s\S]*?)<\/a>/gi, function (m) {
+        var t = m[1].replace(/<[^>]*>/g, '').trim();
+        if (/^(click here|here|read more|learn more|more|link|this|details)$/i.test(t))
+          add({ ruleId: 'a11y.link-text', category: 'accessibility', severity: 'minor', title: 'Link text is not descriptive', start: m.index, end: m.index + m[0].length,
+            message: '"' + t + '" means nothing when links are read out of context.', guidance: 'Name the destination, e.g. "See Lumio Plus pricing".', source: sourceOf(kit, 'G-ACC-3') });
+      });
+      var lastH = 0;
+      each(raw, /<h([1-6])\b/gi, function (m) {
+        var l = +m[1];
+        if (lastH && l > lastH + 1)
+          add({ ruleId: 'a11y.heading-order', category: 'accessibility', severity: 'minor', title: 'Heading level skipped', start: m.index, end: m.index + m[0].length + 1,
+            message: 'h' + lastH + ' is followed by h' + l + '. Skipped levels break navigation for assistive tech.', fix: { type: 'replace', text: '<h' + (lastH + 1), label: 'Use h' + (lastH + 1) },
+            preserves: 'Visual size can be kept with CSS.', source: sourceOf(kit, 'G-ACC-3') });
+        lastH = l;
+      });
+      cssChecks();
+    } else if (format === 'markdown') {
+      each(raw, /!\[([^\]]*)\]\(([^)\n]*)\)/g, function (m) {
+        if (!m[1].trim())
+          add({ ruleId: 'a11y.alt-missing', category: 'accessibility', severity: 'major', title: 'Image has no alt text', start: m.index, end: m.index + m[0].length,
+            message: 'People using screen readers get nothing from this image.', guidance: 'Describe what the image shows.',
+            fix: { type: 'replace', text: '![{{input}}](' + m[2] + ')', label: 'Add alt text', input: { label: 'Alt text', placeholder: 'Describe the image' } },
+            preserves: 'The image is unchanged.', source: sourceOf(kit, 'G-ACC-1') });
+      });
+      each(raw, /(^|[^!])\[([^\]]*)\]\(([^)\n]*)\)/g, function (m) {
+        if (/^(click here|here|read more|learn more|more|link|this|details)$/i.test(m[2].trim()))
+          add({ ruleId: 'a11y.link-text', category: 'accessibility', severity: 'minor', title: 'Link text is not descriptive', start: m.index + m[1].length, end: m.index + m[0].length,
+            message: '"' + m[2] + '" means nothing when links are read out of context.', guidance: 'Name the destination.', source: sourceOf(kit, 'G-ACC-3') });
+      });
+      var lh = 0;
+      each(raw, /^[ \t]{0,3}(#{1,6})[ \t]/gm, function (m) {
+        var l = m[1].length;
+        if (lh && l > lh + 1)
+          add({ ruleId: 'a11y.heading-order', category: 'accessibility', severity: 'minor', title: 'Heading level skipped', start: m.index, end: m.index + m[0].length,
+            message: 'Level ' + lh + ' is followed by ' + l + '.', fix: { type: 'replace', text: m[0].replace(/#+/, new Array(lh + 2).join('#')), label: 'Use level ' + (lh + 1) },
+            preserves: 'Heading text unchanged.', source: sourceOf(kit, 'G-ACC-3') });
+        lh = l;
+      });
+    } else {
+      each(masked, /\b(click here|read more)\b/gi, function (m) {
+        add({ ruleId: 'a11y.link-text', category: 'accessibility', severity: 'info', title: 'Generic call to action', start: m.index, end: m.index + m[0].length,
+          message: 'If this becomes a link, "' + m[0] + '" will not describe its destination.', guidance: 'Name the destination.', source: sourceOf(kit, 'G-ACC-3') });
+      });
+    }
+
+    function cssChecks() {
+      var fonts = (kit.fonts || []).map(function (f) { return f.toLowerCase(); });
+      var seen = {};
+      each(raw, /\{[^}]*\}|style\s*=\s*"[^"]*"|style\s*=\s*'[^']*'/gi, function (blk) {
+        var txt = blk[0], base = blk.index;
+        var fg = /(^|[;{"'\s])color\s*:\s*([^;}"']+)/i.exec(txt);
+        var bg = /background(?:-color)?\s*:\s*([^;}"']+)/i.exec(txt);
+        var fgRgb = fg && parseColor(fg[2]), bgRgb = bg && parseColor(bg[1]);
+        if (fgRgb && bgRgb) {
+          var r = contrast(fgRgb, bgRgb);
+          if (r < 4.5) {
+            var vs = base + fg.index + fg[0].length - fg[2].length, ve = vs + fg[2].trim().length;
+            var cands = paletteRgb(kit).concat([{ name: 'White', hex: '#ffffff', rgb: [255, 255, 255] }, { name: 'Black', hex: '#000000', rgb: [0, 0, 0] }])
+              .filter(function (p) { return contrast(p.rgb, bgRgb) >= 4.5; }).sort(function (a, b) { return dist(a.rgb, fgRgb) - dist(b.rgb, fgRgb); });
+            var best = cands[0];
+            add({ ruleId: 'a11y.contrast', category: 'accessibility', severity: 'major', title: 'Low colour contrast (' + r.toFixed(1) + ':1)', start: vs, end: ve,
+              message: 'Text needs at least 4.5:1 contrast against its background; this pair gives ' + r.toFixed(2) + ':1.',
+              fix: best ? { type: 'replace', text: best.hex, label: 'Use ' + best.name + ' ' + best.hex } : null,
+              preserves: 'Layout and message unchanged; only the text colour moves to the nearest accessible brand colour.', source: sourceOf(kit, 'G-ACC-2') });
+            seen[vs] = true;
+          }
+        }
+        var re = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/g, m;
+        while ((m = re.exec(txt))) {
+          var s = base + m.index; if (seen[s]) continue;
+          var rgb = parseColor(m[0]); if (!rgb || isNeutral(rgb)) continue;
+          var nr = nearestPalette(kit, rgb);
+          if (nr && nr.d > 48)
+            add({ ruleId: 'visual.off-palette', category: 'visual', severity: 'minor', title: 'Colour is not in the brand palette', start: s, end: s + m[0].length,
+              message: m[0] + ' is not an approved colour. Nearest is ' + nr.entry.name + ' ' + nr.entry.hex + '.',
+              fix: { type: 'replace', text: nr.entry.hex, label: 'Use ' + nr.entry.name + ' ' + nr.entry.hex }, preserves: 'Same role in the layout, in an approved colour.', source: sourceOf(kit, 'G-VIS-1') });
+        }
+        var ff = /font-family\s*:\s*([^;}"']+)/i.exec(txt);
+        if (ff && fonts.length) {
+          var fam = ff[1].split(',').map(function (x) { return x.trim().replace(/["']/g, '').toLowerCase(); });
+          if (!fam.some(function (x) { return fonts.indexOf(x) > -1; })) {
+            var fs = base + ff.index + ff[0].length - ff[1].length;
+            add({ ruleId: 'visual.font', category: 'visual', severity: 'minor', title: 'Font is not an approved brand font', start: fs, end: fs + ff[1].trim().length,
+              message: 'Approved fonts: ' + kit.fonts.join(', ') + '.', fix: { type: 'replace', text: kit.fonts[0] + ', sans-serif', label: 'Use ' + kit.fonts[0] },
+              preserves: 'Text content unchanged.', source: sourceOf(kit, 'G-VIS-2') });
+          }
+        }
+      });
+    }
+
+    // 9. image metadata
+    if (meta) {
+      var im = kit.image || {};
+      if (!meta.alt || !meta.alt.trim())
+        add({ ruleId: 'a11y.alt-missing', category: 'accessibility', severity: 'major', title: 'Image has no alt text',
+          message: 'Every published image needs a description for people who cannot see it.', guidance: 'Describe what is shown and why it is there.',
+          fix: { type: 'setAlt', text: '{{input}}', label: 'Add alt text', input: { label: 'Alt text', placeholder: 'Describe the image' } },
+          preserves: 'The image is unchanged.', source: sourceOf(kit, 'G-ACC-1') });
+      if (im.minWidth && meta.width < im.minWidth)
+        add({ ruleId: 'visual.resolution', category: 'visual', severity: 'minor', title: 'Image resolution is low',
+          message: 'Width is ' + meta.width + 'px; hero and campaign images need at least ' + im.minWidth + 'px.', guidance: 'Request the original asset from the asset library.', source: sourceOf(kit, 'G-VIS-3') });
+      if (im.ratios) {
+        var ar = meta.width / meta.height;
+        var ok = im.ratios.some(function (r) { return Math.abs(ar - r.v) / r.v < 0.03; });
+        if (!ok) add({ ruleId: 'visual.ratio', category: 'visual', severity: 'minor', title: 'Aspect ratio is not approved',
+          message: 'This image is ' + ar.toFixed(2) + ':1. Approved ratios: ' + im.ratios.map(function (r) { return r.n; }).join(', ') + '.', guidance: 'Crop to an approved ratio.', source: sourceOf(kit, 'G-VIS-3') });
+      }
+      if (im.maxBytes && meta.bytes > im.maxBytes)
+        add({ ruleId: 'visual.size', category: 'visual', severity: 'info', title: 'Image file is large',
+          message: 'File is ' + Math.round(meta.bytes / 1024) + ' KB; keep under ' + Math.round(im.maxBytes / 1024) + ' KB for fast pages.', guidance: 'Export as WebP or compress.', source: sourceOf(kit, 'G-VIS-3') });
+      var off = (meta.colors || []).filter(function (c) {
+        var rgb = parseColor(c.hex); if (!rgb || c.share < 0.12) return false;
+        var mx = Math.max.apply(null, rgb), mn = Math.min.apply(null, rgb);
+        if (mx < 40 || (mx - mn) / (mx || 1) < 0.3) return false;
+        var nr = nearestPalette(kit, rgb); return nr && nr.d > 90;
+      });
+      if (off.length)
+        add({ ruleId: 'visual.image-palette', category: 'visual', severity: 'minor', confidence: 0.7, title: 'Dominant colour is outside the brand palette',
+          message: off.map(function (c) { return c.hex + ' (' + Math.round(c.share * 100) + '% of image)'; }).join(', ') + ' sits far from every brand colour.',
+          guidance: 'Colour-grade the image toward the palette or choose another asset. This check samples pixels and is heuristic.', source: sourceOf(kit, 'G-VIS-1') });
+    }
+
+    // finalise: dedupe, sort, key
+    var seenK = {};
+    out = out.filter(function (f) { var k = f.ruleId + '|' + f.start + '|' + f.end; if (seenK[k]) return false; seenK[k] = 1; return true; });
+    out.sort(function (a, b) {
+      var sa = SEV_ORDER.indexOf(a.severity), sb = SEV_ORDER.indexOf(b.severity);
+      if (a.start < 0 && b.start >= 0) return 1; if (b.start < 0 && a.start >= 0) return -1;
+      return a.start - b.start || sa - sb;
+    });
+    var occ = {};
+    out.forEach(function (f) {
+      var base = f.ruleId + '|' + (f.match || '').toLowerCase().slice(0, 40);
+      occ[base] = (occ[base] || 0) + 1;
+      f.key = base + '|' + occ[base];
+      f.confidence = f.confidence == null ? 1 : f.confidence;
+      f.method = 'rule';
+    });
+    return { findings: out, score: score(out), stats: { words: wc, readingEase: fe == null ? null : Math.round(fe) } };
+  }
+
+  function score(fs) {
+    var s = 100; fs.forEach(function (f) { s -= SEV_WEIGHT[f.severity] || 0; });
+    return Math.max(0, s);
+  }
+
+  // ---------- fixes ----------
+  function applyFix(body, finding, inputValue) {
+    var fx = finding.fix; if (!fx) return body;
+    var text = fx.text;
+    if (fx.input) text = text.replace('{{input}}', String(inputValue || '').replace(/"/g, '&quot;'));
+    if (fx.type === 'append') return body.replace(/\s+$/, '') + text;
+    if (fx.type === 'replace') {
+      var out = body.slice(0, finding.start) + text + body.slice(finding.end);
+      if (text === '') out = out.replace(/ {2,}/g, ' ').replace(/ +([.,;!?])/g, '$1');
+      return out;
+    }
+    return body;
+  }
+
+  // ---------- workflow policy ----------
+  function resolved(decisions, f) { var d = decisions && decisions[f.key]; return !!d && (d.state === 'dismissed' || d.state === 'waived'); }
+  function gate(findings, decisions) {
+    var blockers = findings.filter(function (f) { return f.severity === 'blocker' && !(decisions[f.key] && decisions[f.key].state === 'waived'); });
+    var majors = findings.filter(function (f) { return f.severity === 'major' && !resolved(decisions, f); });
+    return { ok: !blockers.length && !majors.length, blockers: blockers, majors: majors };
+  }
+  function approvalPolicy(findings, decisions) {
+    var roles = ['manager'], reasons = [];
+    var risky = findings.filter(function (f) { return ['claims', 'facts', 'confidentiality'].indexOf(f.category) > -1 && f.severity !== 'info'; });
+    if (risky.length) reasons.push('Content triggered ' + risky.length + ' claim, fact or confidentiality finding(s).');
+    var dm = findings.filter(function (f) { return f.severity === 'major' && decisions[f.key] && decisions[f.key].state === 'dismissed'; });
+    if (dm.length) reasons.push(dm.length + ' major finding(s) were dismissed by the author.');
+    var wv = findings.filter(function (f) { return decisions[f.key] && decisions[f.key].state === 'waived'; });
+    if (wv.length) reasons.push(wv.length + ' finding(s) were waived.');
+    if (reasons.length) roles.push('reviewer');
+    return { roles: roles, reasons: reasons };
+  }
+
+  // ---------- diff ----------
+  function diffWords(a, b) {
+    var x = a.split(/(\s+)/).filter(Boolean), y = b.split(/(\s+)/).filter(Boolean);
+    if (x.length * y.length > 4e6) return [{ t: 'del', s: a }, { t: 'ins', s: b }];
+    var n = x.length, m = y.length, L = [], i, j;
+    for (i = 0; i <= n; i++) { L.push(new Array(m + 1).fill(0)); }
+    for (i = n - 1; i >= 0; i--) for (j = m - 1; j >= 0; j--) L[i][j] = x[i] === y[j] ? L[i + 1][j + 1] + 1 : Math.max(L[i + 1][j], L[i][j + 1]);
+    var ops = []; i = 0; j = 0;
+    while (i < n && j < m) {
+      if (x[i] === y[j]) { push('eq', x[i]); i++; j++; }
+      else if (L[i + 1][j] >= L[i][j + 1]) { push('del', x[i]); i++; } else { push('ins', y[j]); j++; }
+    }
+    while (i < n) push('del', x[i++]); while (j < m) push('ins', y[j++]);
+    function push(t, s) { var l = ops[ops.length - 1]; if (l && l.t === t) l.s += s; else ops.push({ t: t, s: s }); }
+    return ops;
+  }
+
+  return { review: review, applyFix: applyFix, gate: gate, approvalPolicy: approvalPolicy, diffWords: diffWords,
+    score: score, flesch: flesch, contrast: contrast, parseColor: parseColor, toHex: toHex, SEV_ORDER: SEV_ORDER, SEV_WEIGHT: SEV_WEIGHT };
+});
+
+</script>
+<script>
+/* Demo data for "Lumio", a fictional smart-home energy company.
+ * Everything here is sample data. Replace it via Brand Library > Import. */
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.BrandSeed = factory();
+})(typeof self !== 'undefined' ? self : this, function () {
+  'use strict';
+
+  var kit = {
+    brand: 'Lumio',
+    settings: { maxExclaim: 1, maxEmoji: 2, minReadingEase: 50, maxSentenceWords: 28, publicEmailDomains: ['lumio.example'] },
+    guidelines: [
+      { id: 'G-TONE-1', section: 'Voice', title: 'Warm, clear, confident', text: 'We sound like a knowledgeable neighbour: warm, plain-spoken and confident. We never shout or hype. Use at most one exclamation mark and two emoji per piece.' },
+      { id: 'G-TONE-2', section: 'Voice', title: 'Plain language', text: 'Write at a reading ease of 50 or higher. Keep sentences under 28 words. Prefer everyday words to jargon.' },
+      { id: 'G-TERM-1', section: 'Terminology', title: 'Approved terminology', text: 'Call the people who use Lumio "customers" (or "households" for energy topics), never "users". Say "device", not "gadget". Say "affordable", not "cheap".' },
+      { id: 'G-NAME-1', section: 'Terminology', title: 'Brand and product names', text: 'The company is "Lumio". Products are "Lumio Hub" and "Lumio Plus". "Lumio Pro" was retired in March 2025 and replaced by Lumio Plus. "Lumio Classic" was retired in 2024 and replaced by Lumio Hub.' },
+      { id: 'G-CLAIM-1', section: 'Claims', title: 'Superlatives need evidence', text: 'Words such as "best", "#1", "fastest" or "world-class" may only be used when the Evidence Library holds a current proof point. Otherwise describe a specific benefit.' },
+      { id: 'G-CLAIM-2', section: 'Claims', title: 'No absolute promises', text: 'Never promise outcomes. Avoid "guaranteed", "risk-free" and "never fails". Point to the 3-year warranty instead.' },
+      { id: 'G-CLAIM-3', section: 'Claims', title: 'Savings claims', text: 'Only use the approved savings figure (average 18% lower energy bills, 2025 customer study, n=3,100) and always add "Based on our 2025 customer study. Individual results vary."' },
+      { id: 'G-CLAIM-4', section: 'Claims', title: 'No competitor comparisons', text: 'Never name or compare with competitors in published content unless Legal has approved it in writing.' },
+      { id: 'G-VIS-1', section: 'Visual', title: 'Colour palette', text: 'Use Lumio Blue #1F4BFF, Midnight #0E1A3A, Sun #FFB400, Mist #F2F5FB, Ink #1A1A1A and Mint #1F9E7F. Neutral greys are allowed. Photography should sit comfortably inside this palette.' },
+      { id: 'G-VIS-2', section: 'Visual', title: 'Typography', text: 'Headlines and body use Inter. Long-form editorial may use Source Serif 4. No other typefaces.' },
+      { id: 'G-VIS-3', section: 'Visual', title: 'Imagery specifications', text: 'Hero images are at least 1200px wide, at 16:9, 4:5, 1:1 or 1.91:1, and under 800 KB.' },
+      { id: 'G-ACC-1', section: 'Accessibility', title: 'Alternative text', text: 'Every informative image has alt text that describes its content and purpose. Decorative images use an empty alt with role="presentation".' },
+      { id: 'G-ACC-2', section: 'Accessibility', title: 'Colour contrast', text: 'Text must meet WCAG 2.2 AA contrast of 4.5:1 (3:1 for large text).' },
+      { id: 'G-ACC-3', section: 'Accessibility', title: 'Links and headings', text: 'Link text describes its destination. Never use "click here". Headings descend one level at a time.' },
+      { id: 'G-ACC-4', section: 'Accessibility', title: 'No all-caps text', text: 'Avoid blocks of capital letters. Use bold for emphasis.' },
+      { id: 'G-ACC-5', section: 'Accessibility', title: 'Social accessibility', text: 'Write multi-word hashtags in CamelCase so screen readers can pronounce them.' },
+      { id: 'G-CONF-1', section: 'Confidentiality', title: 'Unreleased work and internal data', text: 'Codenames: Project Aurora, Helios, Nightingale. Never publish roadmap dates, internal pricing, credentials or text marked internal. Visible to Managers, Reviewers and Admins only.', confidential: true },
+      { id: 'G-LEGAL-1', section: 'Legal', title: 'Offer and warranty terms', text: 'Any mention of a warranty must point to the warranty terms. Any "free" offer must say that terms apply.' },
+      { id: 'G-LEGAL-2', section: 'Legal', title: 'Email compliance', text: 'Every marketing email includes an unsubscribe line.' },
+      { id: 'G-MSG-1', section: 'Messaging', title: 'Message pillars', text: 'Long-form content supports at least one pillar: Comfort, Control, Savings or Simplicity. Social posts stay under 280 characters with at most 3 hashtags.' }
+    ],
+    facts: [
+      { id: 'F-CUST', label: 'Customer base', type: 'cap', value: 42000, statement: 'More than 42,000 households use Lumio.', asOf: '2026-09-30', expires: '2027-03-31', source: 'Finance monthly report, Sep 2026', owner: 'Finance',
+        regexes: [{ re: '(\\d[\\d,]*(?:\\.\\d+)?)([kK])?\\+?\\s+(?:happy\\s+)?(?:customers|households|homes|families|users)\\b', num: 1, suffix: 2 }] },
+      { id: 'F-SAVE', label: 'Average savings', type: 'savings', value: 18, statement: 'Customers see an average 18% lower energy bills (2025 customer study, n=3,100).', asOf: '2026-01-15', expires: '2027-01-15', source: '2025 customer study', owner: 'Insights',
+        disclaimer: { require: 'results vary|individual results|may vary', append: 'Based on our 2025 customer study. Individual results vary.' },
+        regexes: [
+          { re: '(\\d{1,3})\\s?%[^.!?\\n]{0,40}?\\b(?:savings?|save|lower|less|reduction|cut|off)\\b', num: 1 },
+          { re: '\\b(?:save|saves|saving|cut|cuts|reduce|reduced|lower|lowered|slash(?:ed)?)\\b[^.!?\\n%]{0,40}?(\\d{1,3})\\s?%', num: 1 },
+          { re: '\\b(?:cut|slash|halve)[^.!?\\n]{0,30}?\\bin half\\b|\\bhalve\\b', constant: 50 }] },
+      { id: 'F-FOUND', label: 'Founding year', type: 'exact', value: 2018, statement: 'Lumio was founded in 2018.', asOf: '2026-01-01', expires: '2030-01-01', source: 'Company register', owner: 'Legal',
+        regexes: [{ re: '\\b(?:founded|established)\\s+(?:in\\s+)?(\\d{4})\\b', num: 1 }] },
+      { id: 'F-PRICE', label: 'Recommended retail price', type: 'price', products: { hub: 149, plus: 229 }, statement: 'Lumio Hub $149, Lumio Plus $229.', asOf: '2026-08-01', expires: '2027-02-01', source: 'Price list Aug 2026', owner: 'Product Marketing',
+        regexes: [{ re: 'Lumio\\s+(Hub|Plus)\\b[^.!?\\n]{0,40}?\\$\\s?(\\d[\\d,]*(?:\\.\\d{2})?)', prod: 1, num: 2 }] },
+      { id: 'F-WARR', label: 'Warranty length', type: 'exact', value: 3, statement: 'Every Lumio device has a 3-year warranty.', asOf: '2026-01-01', expires: '2028-01-01', source: 'Warranty policy v4', owner: 'Legal',
+        regexes: [{ re: '\\b(\\d+)[- ]year\\s+(?:limited\\s+)?warranty\\b', num: 1 }] },
+      { id: 'F-COUNTRY', label: 'Countries served', type: 'exact', value: 6, statement: 'Lumio is available in 6 countries.', asOf: '2025-12-01', expires: '2026-06-30', source: 'Sales ops, Dec 2025', owner: 'Sales Ops',
+        regexes: [{ re: '\\b(\\d+)\\s+countries\\b', num: 1 }] }
+    ],
+    terms: [
+      { id: 'users', pattern: '\\busers?\\b', avoid: 'user', prefer: 'customer', pluralize: true, category: 'terminology', severity: 'minor', guideline: 'G-TERM-1', reason: 'We call the people who use Lumio "customers".' },
+      { id: 'cheap', pattern: '\\bcheap(?:er|est)?\\b', avoid: 'cheap', prefer: 'affordable', category: 'terminology', severity: 'minor', guideline: 'G-TERM-1', reason: '"Cheap" reads as low quality. We say "affordable".' },
+      { id: 'gadget', pattern: '\\bgadgets?\\b', avoid: 'gadget', prefer: 'device', pluralize: true, category: 'terminology', severity: 'minor', guideline: 'G-TERM-1', reason: 'We say "device", not "gadget".' },
+      { id: 'pro', pattern: '\\bLumio\\s+Pro\\b', avoid: 'Lumio Pro', prefer: 'Lumio Plus', category: 'facts', severity: 'major', guideline: 'G-NAME-1', reason: 'Lumio Pro was retired in March 2025. It is now Lumio Plus.' },
+      { id: 'classic', pattern: '\\bLumio\\s+Classic\\b', avoid: 'Lumio Classic', prefer: 'Lumio Hub', category: 'facts', severity: 'major', guideline: 'G-NAME-1', reason: 'Lumio Classic was retired in 2024. It is now Lumio Hub.' },
+      { id: 'utilize', pattern: '\\butili[sz]e[sd]?\\b', avoid: 'utilize', prefer: 'use', category: 'language', severity: 'minor', guideline: 'G-TONE-2', reason: 'Plain language: "use" beats "utilize".' },
+      { id: 'leverage', pattern: '\\bleverage\\b', avoid: 'leverage', prefer: 'use', category: 'language', severity: 'minor', guideline: 'G-TONE-2', reason: 'Jargon. Say "use".' },
+      { id: 'guys', pattern: '\\bguys\\b', avoid: 'guys', prefer: 'everyone', category: 'language', severity: 'minor', guideline: 'G-TONE-1', reason: 'Inclusive language: address everyone.' },
+      { id: 'aipowered', pattern: '\\bAI[- ]powered\\b', avoid: 'AI-powered', prefer: 'adaptive', category: 'terminology', severity: 'minor', guideline: 'G-TERM-1', reason: 'We describe what the product does ("adaptive heating"), not the technology.' },
+      { id: 'amazing', pattern: '\\bamazing\\b', avoid: 'amazing', prefer: 'effective', category: 'tone', severity: 'minor', guideline: 'G-TONE-1', reason: 'Hype words undercut our calm, confident voice.' },
+      { id: 'incredible', pattern: '\\bincredible\\b', avoid: 'incredible', prefer: 'impressive', category: 'tone', severity: 'minor', guideline: 'G-TONE-1', reason: 'Hype words undercut our calm, confident voice.' },
+      { id: 'gamechanging', pattern: '\\bgame[- ]chang(?:ing|er)\\b', avoid: 'game-changing', prefer: 'useful', category: 'tone', severity: 'minor', guideline: 'G-TONE-1', reason: 'Hype words undercut our calm, confident voice.' },
+      { id: 'revolutionary', pattern: '\\brevolutionary\\b', avoid: 'revolutionary', prefer: 'new', category: 'tone', severity: 'minor', guideline: 'G-TONE-1', reason: 'Hype words undercut our calm, confident voice.' },
+      { id: 'ultimate', pattern: '\\bultimate\\b', avoid: 'ultimate', prefer: 'complete', category: 'tone', severity: 'minor', guideline: 'G-TONE-1', reason: 'Hype words undercut our calm, confident voice.' }
+    ],
+    claims: [
+      { id: 'best-ever', pattern: '\\b(?:the\\s+)?best\\s+([a-z\\- ]{1,30}?)\\s+ever\\b', prefer: 'a great $1', title: 'Unsupported superlative', severity: 'major', guideline: 'G-CLAIM-1', reason: '"Best ever" cannot be proven and there is no matching proof point in the Evidence Library.' },
+      { id: 'the-best', pattern: '\\bthe\\s+best\\b', prefer: 'a strong', title: 'Unsupported superlative', severity: 'major', guideline: 'G-CLAIM-1', reason: '"The best" is a comparative claim with no proof point on file.' },
+      { id: 'number-one', pattern: '#\\s?1\\b|\\bnumber\\s+(?:one|1)\\b|\\bno\\.\\s?1\\b', title: 'Unsupported ranking claim', severity: 'major', guideline: 'G-CLAIM-1', reason: 'Ranking claims need a named, current source.', guidance: 'Name the ranking, source and year, or describe a specific benefit instead.' },
+      { id: 'worldclass', pattern: '\\bworld[- ]class\\b', prefer: 'high-quality', title: 'Unsupported superlative', severity: 'major', guideline: 'G-CLAIM-1', reason: '"World-class" has no proof point on file.' },
+      { id: 'unbeatable', pattern: '\\bunbeatable\\b', prefer: 'competitive', title: 'Unsupported superlative', severity: 'major', guideline: 'G-CLAIM-1', reason: '"Unbeatable" is an absolute comparative claim.' },
+      { id: 'leading', pattern: '\\b(?:market|industry)[- ]leading\\b|\\bbest[- ]in[- ]class\\b|\\b(?:fastest|cheapest|most (?:advanced|powerful|reliable|trusted))\\b', title: 'Unsupported superlative', severity: 'major', guideline: 'G-CLAIM-1', reason: 'Superlatives need a current proof point.', guidance: 'Replace with a specific, provable benefit.' },
+      { id: 'guarantee', pattern: '\\bguarantee[ds]?\\b|\\brisk[- ]free\\b|\\bzero risk\\b|\\bnever\\s+(?:fails?|breaks?)\\b', title: 'Absolute promise', severity: 'major', guideline: 'G-CLAIM-2', reason: 'Absolute promises create legal exposure.', guidance: 'Use "designed to" or point to the 3-year warranty (and link to its terms).' }
+    ],
+    approvedClaims: [
+      { id: 'EV-12', phrase: 'Best Energy Hub 2025', source: 'Home Tech Awards 2025 certificate', expires: '2027-01-01' }
+    ],
+    competitors: ['Nest', 'Ecobee', 'Hive', 'Tado'],
+    confidentialTerms: ['Project Aurora', 'Helios', 'Nightingale'],
+    requirements: [
+      { id: 'warranty-terms', when: '\\bwarranty\\b', require: 'warranty terms|terms apply', append: 'See warranty terms at lumio.example/warranty.', title: 'Warranty terms link missing', reason: 'Any mention of a warranty must point to the warranty terms.', guideline: 'G-LEGAL-1', severity: 'major' },
+      { id: 'free-terms', when: '\\bfree (?:trial|shipping|installation|delivery)\\b', require: '(?:terms|conditions) apply|T&Cs', append: 'Terms apply.', title: 'Offer terms missing', reason: 'Any "free" offer must say that terms apply.', guideline: 'G-LEGAL-1', severity: 'major' },
+      { id: 'unsubscribe', channels: ['email'], when: '.', require: 'unsubscribe', append: 'You can unsubscribe at any time.', title: 'Unsubscribe line missing', reason: 'Every marketing email needs an unsubscribe line.', guideline: 'G-LEGAL-2', severity: 'major' }
+    ],
+    pillars: [
+      { name: 'Comfort', keywords: ['comfort', 'warm', 'cosy', 'cozy', 'temperature'] },
+      { name: 'Control', keywords: ['control', 'schedule', 'app', 'room'] },
+      { name: 'Savings', keywords: ['sav', 'bill', 'cost', 'spend'] },
+      { name: 'Simplicity', keywords: ['simple', 'easy', 'minutes', 'automatic'] }
+    ],
+    palette: [
+      { name: 'Lumio Blue', hex: '#1F4BFF', role: 'Primary' }, { name: 'Midnight', hex: '#0E1A3A', role: 'Text and dark surfaces' },
+      { name: 'Sun', hex: '#FFB400', role: 'Accent' }, { name: 'Mist', hex: '#F2F5FB', role: 'Background' },
+      { name: 'Ink', hex: '#1A1A1A', role: 'Body text' }, { name: 'Mint', hex: '#1F9E7F', role: 'Success' }
+    ],
+    fonts: ['Inter', 'Source Serif 4'],
+    acronyms: ['LED', 'USB', 'FAQ', 'HVAC', 'WIFI', 'API', 'USA', 'CEO', 'FAQS', 'PDF', 'NEW'],
+    image: { minWidth: 1200, maxBytes: 800 * 1024, ratios: [{ n: '16:9', v: 16 / 9 }, { n: '4:5', v: 0.8 }, { n: '1:1', v: 1 }, { n: '1.91:1', v: 1.91 }] }
+  };
+
+  var users = [
+    { id: 'u-priya', name: 'Priya Nair', role: 'creator', title: 'Content marketer' },
+    { id: 'u-marcus', name: 'Marcus Webb', role: 'creator', title: 'Agency copywriter' },
+    { id: 'u-anita', name: 'Anita Rao', role: 'manager', title: 'Marketing manager' },
+    { id: 'u-daniel', name: 'Daniel Okoye', role: 'reviewer', title: 'Legal and brand reviewer' },
+    { id: 'u-sam', name: 'Sam Ellis', role: 'admin', title: 'Brand governance admin' }
+  ];
+
+  function iso(d) { return d.toISOString().slice(0, 10); }
+  function daysAgo(today, n) { var d = new Date(today + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString(); }
+
+  function version(v, body, by, at, note, extra) { var o = { v: v, body: body, by: by, at: at, note: note }; if (extra) for (var k in extra) o[k] = extra[k]; return o; }
+
+  function contents(today) {
+    var t = function (n) { return daysAgo(today, n); };
+    return [
+      { id: 'c-1', title: 'Winter launch social post', format: 'text', channel: 'social', authorId: 'u-priya', status: 'draft', created: t(1),
+        versions: [version(1, 'Meet LUMIO Pro, the best smart hub ever!!! Over 50,000 users have cut their energy bills by 40%, guaranteed. Our smart home gadgets are amazing. Click here to learn more. Way better than Nest. #SmartHome #energysavingtips #Lumio #Sustainability', 'u-priya', t(1), 'First draft')],
+        decisions: {}, comments: [{ id: 'k1', by: 'u-priya', at: t(1), text: 'Launch is Monday. Happy to cut anything that needs Legal.' }], approvals: [], history: [{ at: t(1), by: 'u-priya', text: 'Created draft' }] },
+      { id: 'c-2', title: 'December newsletter feature', format: 'text', channel: 'email', authorId: 'u-marcus', status: 'in_review', created: t(4),
+        versions: [version(1, 'Hi there,\n\nWinter is when heating costs climb. Lumio Plus learns how your household uses energy and adjusts your heating automatically, so you stay comfortable and spend less. Customers see an average 18% lower energy bills in our 2025 study.\n\nLumio Plus is $229, and we include free installation for the first 500 orders.\n\nSee how Lumio Plus works at lumio.example/plus.\n\nThe Lumio team', 'u-marcus', t(4), 'Draft from agency')],
+        decisions: {}, comments: [{ id: 'k2', by: 'u-anita', at: t(2), text: 'Looks close. Can you check the savings line and the offer wording against the brand rules before Daniel sees it?' }], approvals: [], history: [{ at: t(4), by: 'u-marcus', text: 'Created draft' }, { at: t(3), by: 'u-marcus', text: 'Submitted for review (v1)' }] },
+      { id: 'c-3', title: 'Spring landing page hero', format: 'html', channel: 'web', authorId: 'u-marcus', status: 'changes_requested', created: t(8),
+        versions: [version(1, '<section style="background:#F2F5FB">\n<h1 style="font-family: Comic Sans MS, cursive; color:#1F4BFF">Spring clean your energy bill</h1>\n<h3>Lumio Hub keeps every room at the right temperature.</h3>\n<img src="hero.jpg">\n<p style="color:#9CB4FF; background:#FFFFFF">Order today and get a 3-year warranty. Founded in 2015, we have helped over 42,000 households.</p>\n<a href="/hub">Click here</a>\n<p style="color:#FF2D95">Lumio Hub from $129.</p>\n</section>', 'u-marcus', t(8), 'Agency first pass')],
+        decisions: {}, comments: [{ id: 'k3', by: 'u-anita', at: t(5), text: 'Please run the automatic checks and fix what you can. The visuals are off-brand.' }], approvals: [{ by: 'u-anita', role: 'manager', decision: 'changes', note: 'Visuals off-brand. See comment.', at: t(5), version: 1 }], history: [{ at: t(8), by: 'u-marcus', text: 'Created draft' }, { at: t(7), by: 'u-marcus', text: 'Submitted for review (v1)' }, { at: t(5), by: 'u-anita', text: 'Requested changes' }] },
+      { id: 'c-4', title: 'Lumio Hub product page copy', format: 'text', channel: 'web', authorId: 'u-priya', status: 'published', created: t(20),
+        versions: [
+          version(1, 'Lumio Hub helps you cut energy bills in half. Utilize 300 devices from one cheap, simple app.', 'u-priya', t(20), 'First draft'),
+          version(2, 'Lumio Hub is the smart home hub that makes saving energy simple. It connects to more than 300 devices and shows your usage in one clear view. Lumio Hub is $149 and comes with a 3-year warranty. See warranty terms at lumio.example/warranty.', 'u-priya', t(18), 'Applied suggestions and rewrote opening')],
+        decisions: {}, comments: [{ id: 'k4', by: 'u-daniel', at: t(17), text: 'Warranty link is there now. Approved from Legal.' }], approvals: [{ by: 'u-anita', role: 'manager', decision: 'approved', note: '', at: t(17), version: 2 }, { by: 'u-daniel', role: 'reviewer', decision: 'approved', note: 'Legal OK', at: t(17), version: 2 }],
+        history: [{ at: t(20), by: 'u-priya', text: 'Created draft' }, { at: t(19), by: 'u-priya', text: 'Submitted for review (v1)' }, { at: t(19), by: 'u-anita', text: 'Requested changes' }, { at: t(18), by: 'u-priya', text: 'Saved v2' }, { at: t(17), by: 'u-anita', text: 'Approved as manager' }, { at: t(17), by: 'u-daniel', text: 'Approved as reviewer' }, { at: t(16), by: 'u-anita', text: 'Published' }] },
+      { id: 'c-5', title: 'Behind the scenes blog teaser', format: 'markdown', channel: 'blog', authorId: 'u-marcus', status: 'draft', created: t(2),
+        versions: [version(1, '## Behind the scenes\n\nWe are excited to share a sneak peek at Project Aurora, our next-generation controller. (Internal only: launch date 3 March.)\n\n#### What it means for you\n\n![](aurora.png)\n\nContact jon.martin@gmail.com for details or [click here](https://lumio.example/news).', 'u-marcus', t(2), 'Draft')],
+        decisions: {}, comments: [], approvals: [], history: [{ at: t(2), by: 'u-marcus', text: 'Created draft' }] },
+      { id: 'c-6', title: 'Kitchen hero image', format: 'image', channel: 'web', authorId: 'u-priya', status: 'draft', created: t(1),
+        versions: [version(1, 'Family cooking in a sunlit kitchen with Lumio Plus on the wall.', 'u-priya', t(1), 'Uploaded',
+          { imageMeta: { name: 'kitchen-hero.jpg', width: 1000, height: 563, bytes: 950000, alt: '', colors: [{ hex: '#E0457B', share: 0.38 }, { hex: '#F4EDE4', share: 0.3 }, { hex: '#2B2B2B', share: 0.2 }] }, thumb: null })],
+        decisions: {}, comments: [], approvals: [], history: [{ at: t(1), by: 'u-priya', text: 'Uploaded image' }] }
+    ];
+  }
+
+  // Sample governance history so Insights has something to show. Clearly labelled as sample data in the UI.
+  function log(today) {
+    var s = 7;
+    function rnd() { s |= 0; s = s + 0x6D2B79F5 | 0; var t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }
+    var R = [
+      ['term.users', 'Use "customer" instead of "user"', 'terminology', 22, 0.05, 0.0],
+      ['claim.the-best', 'Unsupported superlative', 'claims', 16, 0.12, 0.05],
+      ['a11y.alt-missing', 'Image has no alt text', 'accessibility', 18, 0.05, 0.0],
+      ['tone.exclaim', 'Too many exclamation marks', 'tone', 14, 0.1, 0.0],
+      ['fact.F-SAVE', 'Savings figure above approved figure', 'claims', 9, 0.05, 0.0],
+      ['msg.disclaimer.F-SAVE', 'Required disclaimer missing', 'messaging', 10, 0.08, 0.1],
+      ['tone.reading-ease', 'Reading level is high', 'language', 12, 0.62, 0.45],
+      ['msg.pillars', 'No key message pillar found', 'messaging', 9, 0.7, 0.55],
+      ['term.pro', 'Use "Lumio Plus" instead of "Lumio Pro"', 'facts', 8, 0.0, 0.0],
+      ['visual.off-palette', 'Colour is not in the brand palette', 'visual', 9, 0.4, 0.3],
+      ['visual.image-palette', 'Dominant colour is outside the brand palette', 'visual', 7, 0.55, 0.4],
+      ['a11y.contrast', 'Low colour contrast', 'accessibility', 6, 0.05, 0.0],
+      ['claim.competitor', 'Competitor named', 'claims', 4, 0.0, 0.0],
+      ['conf.codename', 'Unreleased or confidential name', 'confidentiality', 3, 0.0, 0.0]
+    ];
+    var total = R.reduce(function (a, r) { return a + r[3]; }, 0), out = [], i;
+    var authors = ['u-priya', 'u-marcus', 'u-marcus'];
+    for (i = 0; i < 150; i++) {
+      var x = rnd() * total, r = R[0], acc = 0;
+      for (var j = 0; j < R.length; j++) { acc += R[j][3]; if (x <= acc) { r = R[j]; break; } }
+      var age = Math.floor(Math.pow(rnd(), 0.8) * 56);
+      var a = authors[Math.floor(rnd() * 3)];
+      if (r[0].indexOf('a11y') === 0 || r[0] === 'visual.off-palette') a = rnd() < 0.7 ? 'u-marcus' : a;
+      var o = rnd() < r[4] ? (r[0] === 'conf.codename' ? 'waived' : 'dismissed') : 'fixed';
+      out.push({ at: daysAgo(today, age), ruleId: r[0], title: r[1], category: r[2], authorId: a, outcome: o, unclear: rnd() < r[5], sample: true });
+    }
+    return out.sort(function (p, q) { return p.at < q.at ? -1 : 1; });
+  }
+
+  return { kit: kit, users: users, contents: contents, log: log };
+});
+
+</script>
+<script>
+/* BrandGuard UI. Vanilla JS, no framework. State lives in memory and is mirrored to localStorage. */
+(function () {
+  'use strict';
+  var E = window.BrandEngine, S = window.BrandSeed;
+  var KEY = 'brandguard.v1';
+  var today = function () { return new Date().toISOString().slice(0, 10); };
+  var clone = function (o) { return JSON.parse(JSON.stringify(o)); };
+
+  function fresh() { var t = today(); return { v: 1, kit: clone(S.kit), users: clone(S.users), me: 'u-priya', contents: S.contents(t), log: S.log(t), seq: 100 }; }
+  function load() { try { var s = localStorage.getItem(KEY); var o = s && JSON.parse(s); return o && o.v === 1 ? o : null; } catch (e) { return null; } }
+  var state = load() || fresh();
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable: keep working in memory */ } }
+
+  var ui = { view: 'queue', id: null, tab: 'content', editing: false, draft: '', filter: 'all', pending: null, libTab: 'guidelines', diffV: null, resolvedOpen: false, newFmt: 'text', cmFinding: null };
+
+  // ---------- helpers ----------
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function $(s, r) { return (r || document).querySelector(s); }
+  function user(id) { return state.users.filter(function (u) { return u.id === id; })[0] || { name: 'Unknown', role: 'creator' }; }
+  function me() { return user(state.me); }
+  function cnt(id) { return state.contents.filter(function (c) { return c.id === id; })[0]; }
+  function latest(c) { return c.versions[c.versions.length - 1]; }
+  function uid(p) { return p + (++state.seq); }
+  function ago(iso) { var d = Math.round((Date.now() - new Date(iso)) / 864e5); return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d + ' days ago'; }
+  function toast(t) { var old = document.querySelector('.toast'); if (old) old.remove(); var el = document.createElement('div'); el.className = 'toast'; el.setAttribute('role', 'status'); el.textContent = t; document.body.appendChild(el); setTimeout(function () { el.remove(); }, 2600); }
+  var STATUS = { draft: 'Draft', in_review: 'In review', changes_requested: 'Changes requested', approved: 'Approved', published: 'Published' };
+  var ROLE = { creator: 'Creator', manager: 'Manager', reviewer: 'Reviewer', admin: 'Admin' };
+  var CAT = { tone: 'Tone', language: 'Language', terminology: 'Terminology', claims: 'Claims', facts: 'Facts', messaging: 'Messaging', visual: 'Visual', accessibility: 'Accessibility', confidentiality: 'Confidentiality' };
+  var SEVN = { blocker: 'Blocker', major: 'Major', minor: 'Minor', info: 'Note' };
+  var FMT = { text: 'Plain text', markdown: 'Markdown', html: 'HTML', image: 'Image' };
+
+  function reviewOf(c, body) {
+    var v = latest(c);
+    return E.review({ body: body != null ? body : v.body, format: c.format, channel: c.channel, imageMeta: v.imageMeta }, state.kit, { today: today() });
+  }
+  function isResolved(c, f) { var d = c.decisions[f.key]; return !!d && (d.state === 'dismissed' || d.state === 'waived'); }
+  function scoreClass(s) { return s >= 85 ? 'sc-good' : s >= 60 ? 'sc-mid' : 'sc-bad'; }
+  function logOutcome(c, f, outcome, unclear) {
+    state.log.push({ at: new Date().toISOString(), ruleId: f.ruleId, title: f.title, category: f.category, authorId: c.authorId, outcome: outcome, unclear: !!unclear, contentId: c.id });
+  }
+  function hist(c, text) { c.history.push({ at: new Date().toISOString(), by: state.me, text: text }); }
+
+  // ---------- permissions ----------
+  function isAuthor(c) { return c.authorId === state.me; }
+  function canEdit(c) { var r = me().role; return (isAuthor(c) || r === 'admin') && (c.status === 'draft' || c.status === 'changes_requested'); }
+  function requiredRoles(c) { var r = reviewOf(c); return E.approvalPolicy(r.findings, c.decisions); }
+  function approvedBy(c, role) { var v = latest(c).v; return c.approvals.some(function (a) { return a.role === role && a.decision === 'approved' && a.version === v; }); }
+  function myApprovalRole(c) {
+    var r = me().role; if (isAuthor(c)) return null;
+    if (r === 'manager' || r === 'admin') return 'manager'; if (r === 'reviewer') return 'reviewer'; return null;
+  }
+  function refreshStatus(c) {
+    if (c.status === 'published') return;
+    var v = latest(c).v;
+    if (c.status === 'in_review' || c.status === 'approved') {
+      if (c.approvals.some(function (a) { return a.version === v && a.decision === 'changes'; })) { c.status = 'changes_requested'; return; }
+      var need = requiredRoles(c).roles;
+      c.status = need.every(function (r) { return approvedBy(c, r); }) ? 'approved' : 'in_review';
+    }
+  }
+
+  // ---------- actions ----------
+  function newVersion(c, body, note, extra) {
+    var v = latest(c), nv = { v: v.v + 1, body: body, by: state.me, at: new Date().toISOString(), note: note };
+    if (v.imageMeta) { nv.imageMeta = clone(v.imageMeta); nv.thumb = v.thumb; }
+    if (extra) for (var k in extra) nv[k] = extra[k];
+    c.versions.push(nv);
+    if (c.status === 'approved' || c.status === 'in_review') { c.status = 'draft'; hist(c, 'Edited after review: approvals reset'); }
+    hist(c, 'Saved v' + nv.v + (note ? ' (' + note + ')' : ''));
+  }
+  function applyFinding(c, f, input) {
+    if (f.fix && f.fix.input && !String(input || '').trim()) { toast('Add the text first'); return; }
+    if (ui.editing) {
+      ui.draft = E.applyFix(ui.draft, f, input); logOutcome(c, f, 'fixed'); toast('Applied to your draft. Save to keep it.');
+    } else if (f.fix.type === 'setAlt') {
+      newVersion(c, latest(c).body, 'Added alt text', { imageMeta: Object.assign(clone(latest(c).imageMeta), { alt: input }) }); logOutcome(c, f, 'fixed'); toast('Alt text added');
+    } else {
+      newVersion(c, E.applyFix(latest(c).body, f, input), 'Applied: ' + f.title); logOutcome(c, f, 'fixed'); toast('Suggestion applied as a new version');
+    }
+    save(); render();
+  }
+  function decide(c, f, state_, reason) {
+    c.decisions[f.key] = { state: state_, by: state.me, reason: reason || '', at: new Date().toISOString(), ver: latest(c).v };
+    logOutcome(c, f, state_); hist(c, (state_ === 'waived' ? 'Waived' : 'Dismissed') + ': ' + f.title + (reason ? ' (' + reason + ')' : '')); save();
+  }
+
+  // ---------- rendering ----------
+  var app = document.getElementById('app');
+  function render() {
+    var navs = [['queue', 'Review queue'], ['insights', 'Insights'], ['library', 'Brand library'], ['about', 'Trust and audit']];
+    var h = '<div class="top"><div class="top-in"><button class="brand" data-act="nav" data-v="queue" aria-label="BrandGuard home"><svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z" fill="var(--accent)"/><path d="m8.5 12 2.5 2.5 4.5-5" stroke="var(--accent-ink)" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>BrandGuard</button><nav class="nav" aria-label="Main">' +
+      navs.map(function (n) { return '<button data-act="nav" data-v="' + n[0] + '"' + (ui.view === n[0] || (ui.view === 'content' && n[0] === 'queue') || ui.view === 'new' && n[0] === 'queue' ? ' aria-current="page"' : '') + '>' + n[1] + '</button>'; }).join('') +
+      '</nav><span class="spacer"></span><button class="badge-ai" data-act="nav" data-v="about" title="How AI and external services are used"><b>No external AI.</b> Content stays in this browser</button>' +
+      '<div class="who"><label class="muted" for="who">Viewing as</label><select id="who" data-chg="who">' +
+      state.users.map(function (u) { return '<option value="' + u.id + '"' + (u.id === state.me ? ' selected' : '') + '>' + esc(u.name) + ' · ' + ROLE[u.role] + '</option>'; }).join('') + '</select></div></div></div><main class="wrap" id="main">';
+    if (ui.view === 'queue') h += viewQueue(); else if (ui.view === 'new') h += viewNew(); else if (ui.view === 'content') h += viewContent();
+    else if (ui.view === 'insights') h += viewInsights(); else if (ui.view === 'library') h += viewLibrary(); else h += viewAbout();
+    app.innerHTML = h + '</main>';
+    if (ui.view === 'content') updateDirty();
+  }
+
+  // ----- queue -----
+  function needsMe(c) {
+    var r = me().role;
+    if ((c.status === 'draft' || c.status === 'changes_requested') && isAuthor(c)) return true;
+    if (c.status === 'in_review' && !isAuthor(c)) {
+      var role = myApprovalRole(c); if (!role) return false;
+      return requiredRoles(c).roles.indexOf(role) > -1 && !approvedBy(c, role);
+    }
+    if (c.status === 'approved' && (r === 'manager' || r === 'admin')) return true;
+    return false;
+  }
+  function viewQueue() {
+    var list = state.contents.slice().sort(function (a, b) { return latest(b).at < latest(a).at ? -1 : 1; });
+    var mine = list.filter(needsMe).length, inrev = list.filter(function (c) { return c.status === 'in_review'; }).length, blk = 0;
+    list.forEach(function (c) { if (c.status !== 'published') blk += reviewOf(c).findings.filter(function (f) { return f.severity === 'blocker' && !isResolved(c, f); }).length; });
+    var f = ui.filter, shown = list.filter(function (c) { return f === 'all' || (f === 'mine' ? needsMe(c) : c.status === f); });
+    return '<div class="page-head"><div><h1>Review queue</h1><p>Everything is checked against approved guidelines, facts and assets before it goes out. You are signed in as ' + esc(me().name) + ' (' + ROLE[me().role] + ').</p></div>' +
+      (me().role !== 'reviewer' ? '<button class="btn primary" data-act="newc">New content</button>' : '') + '</div>' +
+      '<div class="todo"><div class="card"><b>' + mine + '</b><span class="muted">waiting on you</span></div><div class="card"><b>' + inrev + '</b><span class="muted">in review</span></div><div class="card"><b>' + blk + '</b><span class="muted">open blockers across unpublished work</span></div></div>' +
+      '<div class="row" style="margin-bottom:12px" role="group" aria-label="Filter">' +
+      [['all', 'All'], ['mine', 'Needs me'], ['draft', 'Draft'], ['in_review', 'In review'], ['changes_requested', 'Changes requested'], ['approved', 'Approved'], ['published', 'Published']].map(function (x) { return '<button class="chip btn-chip' + (f === x[0] ? ' on' : '') + '" data-act="filter" data-f="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="list">' + (shown.map(function (c) {
+        var r = reviewOf(c), open = r.findings.filter(function (x) { return !isResolved(c, x); });
+        var bl = open.filter(function (x) { return x.severity === 'blocker'; }).length;
+        return '<button class="item" data-act="open" data-id="' + c.id + '"><div><h3>' + esc(c.title) + '</h3><div class="meta"><span>' + FMT[c.format] + ' · ' + esc(c.channel) + '</span><span>' + esc(user(c.authorId).name) + '</span><span>v' + latest(c).v + ', ' + ago(latest(c).at) + '</span>' + (bl ? '<span style="color:var(--blocker);font-weight:600">' + bl + ' blocker' + (bl > 1 ? 's' : '') + '</span>' : '') + '<span>' + open.length + ' open finding' + (open.length === 1 ? '' : 's') + '</span></div></div><span class="chip st-' + c.status + '">' + STATUS[c.status] + '</span><span class="score ' + scoreClass(r.score) + '" title="Brand score">' + r.score + '</span></button>';
+      }).join('') || '<p class="muted" style="padding:20px">Nothing here.</p>') + '</div>';
+  }
+
+  // ----- new content -----
+  function viewNew() {
+    var img = ui.newFmt === 'image';
+    return '<div class="page-head"><div><h1>New content</h1><p>Paste text, import a .txt, .md or .html file, or upload an image. Nothing is uploaded to a server.</p></div><button class="btn" data-act="nav" data-v="queue">Cancel</button></div>' +
+      '<div class="card grid" style="max-width:820px"><div class="row"><div class="field" style="flex:2;min-width:220px"><label for="n-title">Title</label><input type="text" id="n-title" placeholder="e.g. Black Friday email"></div>' +
+      '<div class="field" style="flex:1;min-width:140px"><label for="n-fmt">Format</label><select id="n-fmt" data-chg="newfmt">' + Object.keys(FMT).map(function (k) { return '<option value="' + k + '"' + (ui.newFmt === k ? ' selected' : '') + '>' + FMT[k] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field" style="flex:1;min-width:140px"><label for="n-ch">Channel</label><select id="n-ch"><option>web</option><option>email</option><option>social</option><option>blog</option><option>press</option></select></div></div>' +
+      (img ? '<div class="field"><label for="n-img">Image file</label><input type="file" id="n-img" accept="image/png,image/jpeg,image/webp,image/svg+xml"><span class="muted">Colour, size and ratio are measured locally in your browser.</span></div><div class="field"><label for="n-body">Caption or surrounding copy</label><textarea id="n-body" rows="3"></textarea></div>' :
+        '<div class="field"><label for="n-body">Content</label><textarea id="n-body" rows="12" placeholder="Paste your draft here"></textarea></div><div class="field"><label for="n-file">Or import a file</label><input type="file" id="n-file" accept=".txt,.md,.markdown,.html,.htm,text/*"></div>') +
+      '<div class="row"><button class="btn primary" data-act="create">Create and check</button></div></div>';
+  }
+  function analyzeImage(file) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        try {
+          var c = document.createElement('canvas'); c.width = c.height = 48; var g = c.getContext('2d'); g.drawImage(img, 0, 0, 48, 48);
+          var d = g.getImageData(0, 0, 48, 48).data, b = {}, i, n = 0;
+          for (i = 0; i < d.length; i += 4) { if (d[i + 3] < 128) continue; var k = (d[i] >> 5) + ',' + (d[i + 1] >> 5) + ',' + (d[i + 2] >> 5); b[k] = (b[k] || 0) + 1; n++; }
+          var colors = Object.keys(b).sort(function (x, y) { return b[y] - b[x]; }).slice(0, 5).map(function (k) { var p = k.split(',').map(function (v) { return Math.min(255, v * 32 + 16); }); return { hex: E.toHex(p), share: b[k] / n }; });
+          var s = 320 / Math.max(img.width, img.height, 1), t = document.createElement('canvas'); t.width = Math.round(img.width * Math.min(1, s)) || 1; t.height = Math.round(img.height * Math.min(1, s)) || 1;
+          t.getContext('2d').drawImage(img, 0, 0, t.width, t.height);
+          res({ meta: { name: file.name, width: img.naturalWidth || img.width, height: img.naturalHeight || img.height, bytes: file.size, alt: '', colors: colors }, thumb: t.toDataURL('image/jpeg', 0.7) });
+        } catch (e) { rej(e); } URL.revokeObjectURL(url);
+      };
+      img.onerror = function () { rej(new Error('Could not read image')); }; img.src = url;
+    });
+  }
+  function createContent() {
+    var title = $('#n-title').value.trim(), fmt = ui.newFmt, ch = $('#n-ch').value, body = ($('#n-body') || {}).value || '';
+    if (!title) { toast('Add a title'); return; }
+    var finish = function (extra) {
+      var c = { id: uid('c-'), title: title, format: fmt, channel: ch, authorId: state.me, status: 'draft', created: new Date().toISOString(), versions: [], decisions: {}, comments: [], approvals: [], history: [] };
+      var v = { v: 1, body: body, by: state.me, at: new Date().toISOString(), note: 'First draft' }; if (extra) for (var k in extra) v[k] = extra[k];
+      c.versions.push(v); hist(c, 'Created draft'); state.contents.push(c); save(); ui.view = 'content'; ui.id = c.id; ui.tab = 'content'; ui.editing = false; render();
+    };
+    if (fmt === 'image') {
+      var f = $('#n-img').files[0]; if (!f) { toast('Choose an image'); return; }
+      analyzeImage(f).then(function (r) { finish({ imageMeta: r.meta, thumb: r.thumb }); }, function () { toast('That image could not be read'); });
+    } else { if (!body.trim()) { toast('Add some content'); return; } finish(); }
+  }
+
+  // ----- content / review screen -----
+  function highlight(body, fs, c) {
+    var spans = fs.filter(function (f) { return f.start >= 0 && f.end > f.start; }).sort(function (a, b) { return a.start - b.start; }), pos = 0, h = '';
+    spans.forEach(function (f) {
+      if (f.start < pos) return; h += esc(body.slice(pos, f.start));
+      h += '<mark class="m ' + f.severity + (isResolved(c, f) ? ' done' : '') + '" data-act="jump" data-key="' + esc(f.key) + '" tabindex="0" role="button" title="' + esc(f.title) + '">' + esc(body.slice(f.start, f.end)) + '</mark>'; pos = f.end;
+    });
+    return h + esc(body.slice(pos));
+  }
+  function currentBody(c) { return ui.editing ? ui.draft : latest(c).body; }
+
+  function viewContent() {
+    var c = cnt(ui.id); if (!c) { ui.view = 'queue'; return viewQueue(); }
+    var v = latest(c), h = '<div class="page-head"><div><button class="btn sm" data-act="nav" data-v="queue" style="margin-bottom:8px">Back to queue</button><h1>' + esc(c.title) + '</h1><div class="row muted" style="margin-top:6px"><span class="chip st-' + c.status + '">' + STATUS[c.status] + '</span><span>' + FMT[c.format] + ' · ' + esc(c.channel) + '</span><span>by ' + esc(user(c.authorId).name) + '</span><span>v' + v.v + '</span></div></div><div class="row" id="actions">' + actionsHtml(c) + '</div></div>';
+    h += '<div class="review"><div><div class="tabs" role="tablist">' + [['content', 'Content'], ['versions', 'Versions (' + c.versions.length + ')'], ['discussion', 'Discussion (' + c.comments.length + ')']].map(function (t) { return '<button role="tab" aria-selected="' + (ui.tab === t[0]) + '" data-act="tab" data-t="' + t[0] + '">' + t[1] + '</button>'; }).join('') + '</div>';
+    if (ui.tab === 'content') h += contentTab(c); else if (ui.tab === 'versions') h += versionsTab(c); else h += discussionTab(c);
+    h += '</div><div id="side">' + sideHtml(c) + '</div></div>';
+    return h;
+  }
+  function contentTab(c) {
+    var v = latest(c), body = currentBody(c), r = reviewOf(c, ui.editing ? ui.draft : null), h = '<div id="scorebar">' + scorebar(r) + '</div>';
+    if (c.format === 'image') {
+      var m = v.imageMeta;
+      h += '<div class="card imgbox">' + (v.thumb ? '<img src="' + v.thumb + '" alt="' + esc(m.alt || 'Uploaded image, no alt text yet') + '">' : '<div class="muted" style="width:240px;height:135px;display:grid;place-items:center;border:1px dashed var(--line);border-radius:8px">Sample image: no preview</div>') +
+        '<div style="min-width:0;flex:1"><div class="lbl">Measured locally</div><p class="mono">' + esc(m.name) + '<br>' + m.width + ' × ' + m.height + ' px · ' + Math.round(m.bytes / 1024) + ' KB<br>Alt text: ' + (m.alt ? esc(m.alt) : '<span style="color:var(--major)">missing</span>') + '</p><div class="row" style="margin-top:8px">' + m.colors.map(function (k) { return '<span title="' + k.hex + ' ' + Math.round(k.share * 100) + '%"><span class="sw" style="background:' + k.hex + '"></span> <span class="mono">' + Math.round(k.share * 100) + '%</span></span>'; }).join('') + '</div></div></div><div class="lbl" style="margin:12px 0 6px">Caption</div>';
+    }
+    if (ui.editing) {
+      h += '<textarea id="editor" rows="' + (c.format === 'html' ? 16 : 11) + '" aria-label="Content editor" data-inp="draft">' + esc(ui.draft) + '</textarea><div class="row" style="margin-top:10px"><button class="btn primary" data-act="savever">Save as new version</button><button class="btn" data-act="canceledit">Cancel</button><span id="dirty" class="muted"></span></div><p class="muted" style="margin-top:6px">Checks run as you type. Nothing is saved until you press Save.</p>';
+    } else {
+      h += '<div class="doc' + (c.format === 'html' ? ' code' : '') + '" id="doc">' + highlight(body, r.findings, c) + '</div>';
+      if (c.format === 'html') h += '<details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Preview (scripts disabled)</summary><iframe class="preview" sandbox srcdoc="' + esc(body) + '" title="Preview"></iframe></details>';
+    }
+    return h;
+  }
+  function scorebar(r) {
+    var by = { blocker: 0, major: 0, minor: 0, info: 0 }; r.findings.forEach(function (f) { by[f.severity]++; });
+    return '<div class="card scorebar"><div class="ring ' + scoreClass(r.score) + '" title="Brand score: 100 minus weighted findings">' + r.score + '</div><div><b>Brand score</b><div class="muted">' + r.stats.words + ' words' + (r.stats.readingEase != null ? ' · reading ease ' + r.stats.readingEase : '') + '</div></div><div class="sev-count">' +
+      E.SEV_ORDER.filter(function (s) { return by[s]; }).map(function (s) { return '<span class="sevchip ' + s + '">' + by[s] + ' ' + SEVN[s].toLowerCase() + (by[s] > 1 && s !== 'info' ? 's' : '') + '</span>'; }).join('') + (r.findings.length ? '' : '<span class="sevchip" style="background:var(--good-bg);color:var(--good)">All clear</span>') + '</div></div>';
+  }
+  function sideHtml(c) {
+    var r = reviewOf(c, ui.editing ? ui.draft : null), fs = r.findings, open = fs.filter(function (f) { return !isResolved(c, f); }), done = fs.filter(function (f) { return isResolved(c, f); });
+    var h = '<div class="panel-t"><h2>Findings</h2><span class="muted">' + open.length + ' open' + (done.length ? ', ' + done.length + ' resolved' : '') + '</span></div><div class="findings">';
+    h += open.map(function (f) { return findingCard(c, f); }).join('') || '<div class="card" style="color:var(--good)"><b>No open findings.</b> <span class="muted">Everything checked against the current guidelines.</span></div>';
+    h += '</div>';
+    if (done.length) h += '<div class="panel-t" style="margin-top:14px"><button class="btn sm" data-act="toggleres">' + (ui.resolvedOpen ? 'Hide' : 'Show') + ' ' + done.length + ' dismissed or waived</button></div>' + (ui.resolvedOpen ? '<div class="findings">' + done.map(function (f) { return findingCard(c, f); }).join('') + '</div>' : '');
+    return h + approvalsHtml(c);
+  }
+  function canSeeSource(src) { return !src.confidential || me().role !== 'creator'; }
+  function findingCard(c, f) {
+    var d = c.decisions[f.key], res = isResolved(c, f), role = me().role, edit = canEdit(c) || (role !== 'creator' && c.status !== 'published');
+    var h = '<article class="f ' + f.severity + (res ? ' done' : '') + '" data-fkey="' + esc(f.key) + '"><header><span class="sev ' + f.severity + '">' + SEVN[f.severity] + '</span><span class="chip">' + CAT[f.category] + '</span><h4>' + esc(f.title) + '</h4></header>';
+    if (f.match) h += '<p class="match">' + esc(f.match.length > 120 ? f.match.slice(0, 120) + '…' : f.match) + '</p>';
+    h += '<p>' + esc(f.message) + '</p>';
+    if (f.fix && !res) {
+      var after = f.fix.type === 'append' ? '+ ' + f.fix.text.trim() : f.fix.input ? '(you provide the text)' : f.fix.text === '' ? '(removed)' : f.fix.text, before = f.fix.type === 'append' ? '' : (f.match.length > 60 ? f.match.slice(0, 60) + '…' : f.match);
+      h += '<div class="sugg"><div class="lbl">Suggested change</div><div class="ba">' + (before ? '<del>' + esc(before) + '</del><span aria-hidden="true">→</span>' : '') + '<ins>' + esc(after.length > 140 ? after.slice(0, 140) + '…' : after) + '</ins></div>' + (f.preserves ? '<p class="muted">' + esc(f.preserves) + '</p>' : '');
+      if (f.fix.input) h += '<input type="text" data-alt="' + esc(f.key) + '" aria-label="' + esc(f.fix.input.label) + '" placeholder="' + esc(f.fix.input.placeholder) + '">';
+      if (canEdit(c)) h += '<div class="acts"><button class="btn sm primary" data-act="apply" data-key="' + esc(f.key) + '">' + esc(f.fix.label) + '</button></div>';
+      h += '</div>';
+    } else if (f.guidance && !res) h += '<p class="muted"><b>How to fix:</b> ' + esc(f.guidance) + '</p>';
+    h += '<details><summary>Why was this flagged?</summary><div class="src">' + (f.source ? '<b>' + (f.source.type === 'fact' ? 'Approved fact ' : 'Guideline ') + esc(f.source.id) + ': ' + esc(f.source.title) + '</b><br>' + (canSeeSource(f.source) ? '“' + esc(f.source.quote) + '”' + (f.source.asOf ? '<br><span class="muted">Source: ' + esc(f.source.origin || '') + ', as of ' + esc(f.source.asOf) + '</span>' : '') : '<span class="muted">The wording of this guideline is confidential. Ask the Brand team for details.</span>') : 'No source') + '<br><span class="muted mono">Method: deterministic rule ' + esc(f.ruleId) + ' · confidence ' + Math.round(f.confidence * 100) + '%' + (f.confidence < 1 ? ' (heuristic)' : '') + '</span></div></details>';
+    if (d) h += '<p class="decided">' + (d.state === 'waived' ? 'Waived' : 'Dismissed') + ' by ' + esc(user(d.by).name) + (d.reason ? ': “' + esc(d.reason) + '”' : '') + (edit ? ' <button class="btn sm" data-act="reopenf" data-key="' + esc(f.key) + '">Reopen</button>' : '') + '</p>';
+    else if (ui.pending && ui.pending.key === f.key) {
+      h += '<div class="sugg"><label class="lbl" for="reason">' + (ui.pending.kind === 'waived' ? 'Reason for waiving (recorded in the audit log)' : 'Reason for dismissing' + (f.severity === 'major' ? ' (required)' : '')) + '</label><input type="text" id="reason" placeholder="e.g. Approved by Legal on 12 Oct, ticket LEG-218"><div class="acts"><button class="btn sm primary" data-act="confirmdec" data-key="' + esc(f.key) + '">Confirm</button><button class="btn sm" data-act="cancelpend">Cancel</button></div></div>';
+    } else {
+      h += '<div class="acts">';
+      if (edit && f.severity !== 'blocker' && !ui.editing) h += '<button class="btn sm" data-act="dismiss" data-key="' + esc(f.key) + '">Dismiss</button>';
+      if (role === 'reviewer' && f.severity !== 'info' && c.status !== 'published' && !ui.editing) h += '<button class="btn sm" data-act="waive" data-key="' + esc(f.key) + '">Waive</button>';
+      if (f.severity === 'blocker' && role !== 'reviewer') h += '<span class="muted">Only a Reviewer can waive a blocker.</span>';
+      h += '<button class="btn sm" data-act="unclear" data-key="' + esc(f.key) + '" title="Tells the brand team this guideline is hard to apply">Guideline unclear</button><button class="btn sm" data-act="cmfor" data-key="' + esc(f.key) + '">Comment</button></div>';
+    }
+    return h + '</article>';
+  }
+  function approvalsHtml(c) {
+    var pol = requiredRoles(c), v = latest(c).v, g = E.gate(reviewOf(c).findings, c.decisions);
+    var h = '<div class="card" style="margin-top:18px"><h3>Approvals</h3><div class="approvals">';
+    pol.roles.forEach(function (role) {
+      var a = c.approvals.filter(function (x) { return x.role === role && x.version === v; }).pop();
+      h += '<div class="ap"><span class="dot ' + (a ? (a.decision === 'approved' ? 'ok' : 'no') : '') + '"></span><b>' + ROLE[role] + '</b> ' + (a ? (a.decision === 'approved' ? 'approved' : 'requested changes') + ' · ' + esc(user(a.by).name) + (a.note ? ': “' + esc(a.note) + '”' : '') : '<span class="muted">pending</span>') + '</div>';
+    });
+    h += '</div>' + (pol.reasons.length ? '<p class="muted" style="margin-top:8px"><b>Why a Reviewer is needed:</b> ' + esc(pol.reasons.join(' ')) + '</p>' : '<p class="muted" style="margin-top:8px">A manager approval is enough: no claims, facts or confidentiality issues were raised.</p>') +
+      (!g.ok ? '<p class="warn" style="margin-top:8px">Cannot be submitted yet: ' + (g.blockers.length ? g.blockers.length + ' blocker(s) need a Reviewer waiver or a fix. ' : '') + (g.majors.length ? g.majors.length + ' major finding(s) need a fix or a recorded reason.' : '') + '</p>' : '') +
+      '<p class="muted" style="margin-top:8px">Approvals apply to version ' + v + ' only. Any edit resets them.</p></div>';
+    return h;
+  }
+  function actionsHtml(c) {
+    var h = '', role = me().role, g = E.gate(reviewOf(c).findings, c.decisions), ar = myApprovalRole(c);
+    if (canEdit(c) && !ui.editing && c.format !== 'image') h += '<button class="btn" data-act="edit">Edit</button>';
+    if (canEdit(c) && ui.editing && false) h += '';
+    if (canEdit(c) && c.format === 'image' && !ui.editing) h += '<button class="btn" data-act="edit">Edit caption</button>';
+    if (canEdit(c) && !ui.editing) h += '<button class="btn primary" data-act="submit"' + (g.ok ? '' : ' disabled title="Resolve blockers and major findings first"') + '>Submit for review</button>';
+    if (c.status === 'in_review') {
+      if (isAuthor(c)) h += '<button class="btn" data-act="withdraw">Withdraw</button>';
+      if (ar && requiredRoles(c).roles.indexOf(ar) > -1) h += '<input type="text" id="apnote" placeholder="Note (optional)" aria-label="Approval note" style="width:200px"><button class="btn primary" data-act="approve">Approve as ' + ROLE[ar].toLowerCase() + '</button><button class="btn danger" data-act="reqchg">Request changes</button>';
+      else if (!isAuthor(c)) h += '<span class="muted">Waiting on other approvers</span>';
+    }
+    if (c.status === 'approved' && (role === 'manager' || role === 'admin')) h += '<button class="btn primary" data-act="publish">Publish</button>';
+    if (c.status === 'approved' && isAuthor(c)) h += '<button class="btn" data-act="reopen">Reopen as draft</button>';
+    if (c.status === 'published' && (isAuthor(c) || role === 'admin')) h += '<button class="btn" data-act="reopen">Start a new revision</button>';
+    return h;
+  }
+  function versionsTab(c) {
+    var vs = c.versions.slice().reverse(), sel = ui.diffV || (c.versions.length > 1 ? latest(c).v : null), h = '';
+    if (sel && sel > 1) {
+      var a = c.versions[sel - 2], b = c.versions[sel - 1];
+      h += '<div class="lbl" style="margin-bottom:6px">Changes in v' + sel + ' compared with v' + (sel - 1) + '</div><div class="diff">' + E.diffWords(a.body, b.body).map(function (o) { return o.t === 'ins' ? '<ins>' + esc(o.s) + '</ins>' : o.t === 'del' ? '<del>' + esc(o.s) + '</del>' : esc(o.s); }).join('') + '</div>';
+    } else h += '<p class="muted">Only one version so far.</p>';
+    h += '<div class="lbl" style="margin:16px 0 6px">History</div><div class="list">' + vs.map(function (v) { return '<div class="item" style="grid-template-columns:1fr auto auto;cursor:default"><div><b>v' + v.v + '</b> · ' + esc(v.note || '') + '<div class="meta"><span>' + esc(user(v.by).name) + '</span><span>' + ago(v.at) + '</span></div></div>' + (v.v > 1 ? '<button class="btn sm" data-act="diffv" data-v="' + v.v + '">Compare</button>' : '<span></span>') + (canEdit(c) && v.v !== latest(c).v ? '<button class="btn sm" data-act="restore" data-v="' + v.v + '">Restore</button>' : '<span></span>') + '</div>'; }).join('') + '</div>';
+    h += '<div class="lbl" style="margin:16px 0 6px">Activity</div><div class="card"><ul style="margin:0;padding-left:18px">' + c.history.slice().reverse().map(function (e) { return '<li><b>' + esc(user(e.by).name) + '</b> ' + esc(e.text) + ' <span class="muted">· ' + ago(e.at) + '</span></li>'; }).join('') + '</ul></div>';
+    return h;
+  }
+  function discussionTab(c) {
+    var fs = reviewOf(c).findings;
+    return '<div class="grid">' + (c.comments.map(function (k) {
+      var ref = k.findingKey && fs.filter(function (f) { return f.key === k.findingKey; })[0];
+      return '<div class="cm"><div class="h"><b>' + esc(user(k.by).name) + '</b> · ' + ROLE[user(k.by).role] + ' · ' + ago(k.at) + (ref ? ' · re: ' + esc(ref.title) : '') + '</div>' + esc(k.text) + '</div>';
+    }).join('') || '<p class="muted">No comments yet.</p>') + '</div><div class="field" style="margin-top:14px"><label for="cmt">Add a comment' + (ui.cmFinding ? ' about the selected finding' : '') + '</label><textarea id="cmt" rows="3" style="font-family:var(--sans)"></textarea></div><div class="row" style="margin-top:8px"><button class="btn primary" data-act="comment">Post comment</button></div>';
+  }
+  function updatePanels() {
+    var c = cnt(ui.id); if (!c) return; var r = reviewOf(c, ui.editing ? ui.draft : null);
+    var sb = $('#scorebar'); if (sb) sb.innerHTML = scorebar(r);
+    var sd = $('#side'); if (sd) sd.innerHTML = sideHtml(c); updateDirty();
+  }
+  function updateDirty() { var c = cnt(ui.id), el = $('#dirty'); if (c && el) el.textContent = ui.draft !== latest(c).body ? 'Unsaved changes' : 'No changes yet'; }
+
+  // ----- insights -----
+  var RULE_GUIDE = { 'tone.reading-ease': 'G-TONE-2', 'msg.pillars': 'G-MSG-1', 'visual.off-palette': 'G-VIS-1', 'visual.image-palette': 'G-VIS-1', 'claim.the-best': 'G-CLAIM-1', 'msg.disclaimer.F-SAVE': 'G-CLAIM-3' };
+  var ADVICE = { 'tone.reading-ease': 'Reading-ease target of 50 is dismissed often for technical product pages. Consider separate targets for technical and consumer content.', 'msg.pillars': 'Writers dismiss this for hiring, press and community posts. Define which content types must carry a pillar.', 'visual.off-palette': 'Add a "tints and shades" rule so close variants of brand colours are explicitly allowed or forbidden.', 'visual.image-palette': 'Photography rules are subjective. Add 3 approved and 3 rejected image examples to the guideline.' };
+  function viewInsights() {
+    var L = state.log, role = me().role, total = L.length, fixed = L.filter(function (x) { return x.outcome === 'fixed'; }).length;
+    var by = function (k) { var m = {}; L.forEach(function (x) { m[x[k]] = (m[x[k]] || 0) + 1; }); return Object.keys(m).map(function (a) { return [a, m[a]]; }).sort(function (a, b) { return b[1] - a[1]; }); };
+    var rules = {}; L.forEach(function (x) { var r = rules[x.ruleId] = rules[x.ruleId] || { id: x.ruleId, title: x.title, cat: x.category, n: 0, over: 0, unclear: 0 }; r.n++; if (x.outcome !== 'fixed') r.over++; if (x.unclear) r.unclear++; });
+    var top = Object.keys(rules).map(function (k) { return rules[k]; }).sort(function (a, b) { return b.n - a.n; });
+    var unclear = top.filter(function (r) { return r.n >= 5 && (r.over / r.n >= 0.4 || r.unclear / r.n >= 0.3); }).sort(function (a, b) { return (b.over + b.unclear) / b.n - (a.over + a.unclear) / a.n; });
+    var weeks = [], i; for (i = 7; i >= 0; i--) { var end = Date.now() - i * 7 * 864e5, st = end - 7 * 864e5; weeks.push({ n: L.filter(function (x) { var t = +new Date(x.at); return t > st && t <= end; }).length, fixed: L.filter(function (x) { var t = +new Date(x.at); return t > st && t <= end && x.outcome === 'fixed'; }).length }); }
+    var maxW = Math.max.apply(null, weeks.map(function (w) { return w.n; }).concat(1)), maxT = top.length ? top[0].n : 1;
+    var catRows = by('category'), maxC = catRows.length ? catRows[0][1] : 1, conf = L.filter(function (x) { return x.category === 'confidentiality' || x.ruleId === 'claim.competitor'; }).length;
+    var h = '<div class="page-head"><div><h1>Governance insights</h1><p>What goes wrong most often, who might need support, and where the guidelines themselves are unclear.</p></div>' + (L.some(function (x) { return x.sample; }) ? '<button class="btn sm" data-act="clearsample">Clear sample history</button>' : '') + '</div>';
+    if (L.some(function (x) { return x.sample; })) h += '<p class="note" style="margin-bottom:14px">This page includes ' + L.filter(function (x) { return x.sample; }).length + ' generated sample events from the last 8 weeks so the charts have something to show. Your own review decisions are added as you work.</p>';
+    h += '<div class="kpis"><div class="card kpi"><b>' + total + '</b><span>issues caught before publishing</span></div><div class="card kpi"><b>' + (total ? Math.round(fixed / total * 100) : 0) + '%</b><span>fixed using suggestions, not overridden</span></div><div class="card kpi"><b>' + conf + '</b><span>confidential or competitor slips stopped</span></div><div class="card kpi"><b>' + unclear.length + '</b><span>guidelines that look unclear</span></div></div>';
+    h += '<div class="grid g2"><div class="card"><h3>Most repeated mistakes</h3><div class="bars">' + top.slice(0, 8).map(function (r) { return '<div class="bar"><span title="' + esc(r.title) + '">' + esc(r.title) + '</span><span class="t"><i style="width:' + Math.round(r.n / maxT * 100) + '%"></i></span><span class="n">' + r.n + '</span></div>'; }).join('') + '</div></div>';
+    h += '<div class="card"><h3>By category</h3><div class="bars">' + catRows.map(function (r) { return '<div class="bar"><span>' + CAT[r[0]] + '</span><span class="t"><i style="width:' + Math.round(r[1] / maxC * 100) + '%"></i></span><span class="n">' + r[1] + '</span></div>'; }).join('') + '</div></div></div>';
+    var W = 520, H = 150, px = 34, bw = (W - px) / 8;
+    h += '<div class="card" style="margin-top:16px"><h3>Findings per week</h3><p class="muted">Bars are all findings; the darker part was fixed with a suggestion.</p><div class="tw"><svg viewBox="0 0 ' + W + ' ' + (H + 28) + '" role="img" aria-label="Findings per week for the last 8 weeks" style="width:100%;max-width:640px;height:auto"><line x1="' + px + '" y1="' + H + '" x2="' + W + '" y2="' + H + '" stroke="var(--line)"/>' +
+      [0, 0.5, 1].map(function (f) { var y = H - f * (H - 10); return '<line x1="' + px + '" y1="' + y + '" x2="' + W + '" y2="' + y + '" stroke="var(--line)" stroke-dasharray="2 4"/><text x="' + (px - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-size="11" fill="var(--muted)">' + Math.round(f * maxW) + '</text>'; }).join('') +
+      weeks.map(function (w, k) { var x = px + k * bw + 8, bwid = bw - 16, hh = w.n / maxW * (H - 10), hf = w.fixed / maxW * (H - 10); return '<rect x="' + x + '" y="' + (H - hh) + '" width="' + bwid + '" height="' + hh + '" fill="var(--accent)" opacity=".35" rx="2"/><rect x="' + x + '" y="' + (H - hf) + '" width="' + bwid + '" height="' + hf + '" fill="var(--accent)" rx="2"/><text x="' + (x + bwid / 2) + '" y="' + (H + 16) + '" text-anchor="middle" font-size="11" fill="var(--muted)">' + (k === 7 ? 'now' : '-' + (7 - k) + 'w') + '</text>'; }).join('') + '</svg></div></div>';
+    h += '<div class="card" style="margin-top:16px"><h3>Where the guidelines may be unclear</h3><p class="muted">Flagged when writers override a rule at least 40% of the time, or mark it "Guideline unclear" in at least 30% of cases.</p>' +
+      (unclear.length ? '<div class="tw"><table><thead><tr><th>Rule</th><th>Raised</th><th>Overridden</th><th>Marked unclear</th><th>Suggested action</th></tr></thead><tbody>' + unclear.map(function (r) { return '<tr><td><b>' + esc(r.title) + '</b><br><span class="muted mono">' + esc(r.id) + '</span></td><td>' + r.n + '</td><td>' + Math.round(r.over / r.n * 100) + '%</td><td>' + r.unclear + '</td><td>' + esc(ADVICE[r.id] || 'Review the wording with the brand owner and add a positive and a negative example.') + (RULE_GUIDE[r.id] ? ' <button class="btn sm" data-act="nav" data-v="library" data-lt="guidelines">Open ' + RULE_GUIDE[r.id] + '</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<p class="muted" style="margin-top:8px">Nothing stands out yet.</p>') + '</div>';
+    var au = by('authorId').filter(function (a) { return role !== 'creator' || a[0] === state.me; });
+    h += '<div class="card" style="margin-top:16px"><h3>' + (role === 'creator' ? 'Your most common issues' : 'Where teams may need onboarding') + '</h3><p class="muted">' + (role === 'creator' ? 'Only you can see this.' : 'Visible to managers, reviewers and admins. Use for coaching and briefing agencies, not for ranking people.') + '</p><div class="tw"><table><thead><tr><th>Author</th><th>Issues</th><th>Their top repeat issue</th></tr></thead><tbody>' + au.map(function (a) {
+      var m = {}; L.filter(function (x) { return x.authorId === a[0]; }).forEach(function (x) { m[x.title] = (m[x.title] || 0) + 1; }); var tk = Object.keys(m).sort(function (p, q) { return m[q] - m[p]; })[0];
+      return '<tr><td>' + esc(user(a[0]).name) + '</td><td>' + a[1] + '</td><td>' + esc(tk || '') + ' (' + (m[tk] || 0) + ')</td></tr>'; }).join('') + '</tbody></table></div></div>';
+    return h;
+  }
+
+  // ----- library -----
+  function viewLibrary() {
+    var admin = me().role === 'admin', t = ui.libTab, k = state.kit, role = me().role;
+    var tabs = [['guidelines', 'Guidelines'], ['facts', 'Approved facts'], ['terms', 'Terminology'], ['claims', 'Claims and evidence'], ['assets', 'Visual assets'], ['data', 'Import and export']];
+    var h = '<div class="page-head"><div><h1>Brand library</h1><p>The approved source material every finding points back to. ' + (admin ? 'You can edit it as Admin.' : 'Only Admins can edit it.') + '</p></div></div><div class="tabs" role="tablist">' + tabs.map(function (x) { return '<button role="tab" aria-selected="' + (t === x[0]) + '" data-act="libtab" data-t="' + x[0] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+    if (t === 'guidelines') {
+      h += '<div class="list">' + k.guidelines.map(function (g) { return '<div class="item" style="grid-template-columns:1fr auto;cursor:default"><div><div class="mono muted">' + esc(g.id) + ' · ' + esc(g.section) + (g.confidential ? ' · <b>Confidential</b>' : '') + '</div><h3>' + esc(g.title) + '</h3><p class="muted" style="margin-top:4px">' + (g.confidential && role === 'creator' ? 'Visible to managers, reviewers and admins only.' : esc(g.text)) + '</p></div>' + (admin ? '<button class="btn sm danger" data-act="delg" data-id="' + g.id + '">Delete</button>' : '') + '</div>'; }).join('') + '</div>';
+      if (admin) h += '<div class="card grid" style="margin-top:14px;max-width:720px"><h3>Add a guideline</h3><div class="row"><input type="text" id="g-id" placeholder="ID, e.g. G-TONE-3" style="flex:1"><input type="text" id="g-sec" placeholder="Section" style="flex:1"></div><input type="text" id="g-title" placeholder="Title"><textarea id="g-text" rows="3" style="font-family:var(--sans)" placeholder="Guideline text"></textarea><label class="row"><input type="checkbox" id="g-conf"> Confidential (hidden from creators)</label><div><button class="btn primary" data-act="addg">Add guideline</button></div></div>';
+    } else if (t === 'facts') {
+      h += '<p class="note" style="margin-bottom:12px">Facts are matched by numeric checks (counts, percentages, prices, years). Expired facts are flagged when content uses them.</p><div class="tw"><table><thead><tr><th>Fact</th><th>Approved statement</th><th>Value</th><th>As of</th><th>Expires</th><th>Owner</th></tr></thead><tbody>' + k.facts.map(function (f) {
+        var exp = f.expires < today(); return '<tr><td><b>' + esc(f.label) + '</b><br><span class="mono muted">' + esc(f.id) + '</span></td><td>' + (admin ? '<input type="text" data-fact="' + f.id + '" data-k="statement" value="' + esc(f.statement) + '">' : esc(f.statement)) + '<div class="muted">' + esc(f.source) + '</div></td><td class="mono">' + (f.products ? esc(JSON.stringify(f.products)) : (admin ? '<input type="number" data-fact="' + f.id + '" data-k="value" value="' + f.value + '" style="width:90px">' : f.value)) + '</td><td>' + (admin ? '<input type="date" data-fact="' + f.id + '" data-k="asOf" value="' + f.asOf + '">' : f.asOf) + '</td><td>' + (admin ? '<input type="date" data-fact="' + f.id + '" data-k="expires" value="' + f.expires + '">' : f.expires) + (exp ? '<br><span class="chip" style="color:var(--major)">expired</span>' : '') + '</td><td>' + esc(f.owner || '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+    } else if (t === 'terms') {
+      h += '<div class="tw"><table><thead><tr><th>Avoid</th><th>Prefer</th><th>Type</th><th>Severity</th><th>Reason</th><th></th></tr></thead><tbody>' + k.terms.map(function (x) { return '<tr><td>' + esc(x.avoid) + '</td><td>' + esc(x.prefer || '') + '</td><td>' + CAT[x.category] + '</td><td>' + x.severity + '</td><td>' + esc(x.reason) + '</td><td>' + (admin ? '<button class="btn sm danger" data-act="delt" data-id="' + x.id + '">Delete</button>' : '') + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      if (admin) h += '<div class="card grid" style="margin-top:14px;max-width:720px"><h3>Add a term</h3><div class="row"><input type="text" id="t-avoid" placeholder="Avoid" style="flex:1"><input type="text" id="t-prefer" placeholder="Prefer" style="flex:1"></div><div class="row"><select id="t-cat" style="flex:1"><option value="terminology">Terminology</option><option value="language">Language</option><option value="tone">Tone</option><option value="facts">Retired or outdated name</option></select><select id="t-sev" style="flex:1"><option>minor</option><option>major</option></select></div><input type="text" id="t-why" placeholder="Reason shown to writers"><div><button class="btn primary" data-act="addt">Add term</button></div></div>';
+    } else if (t === 'claims') {
+      h += '<h3>Approved evidence</h3><p class="muted" style="margin:4px 0 10px">Superlatives inside these exact phrases are allowed while the evidence is current.</p><div class="list">' + k.approvedClaims.map(function (c) { return '<div class="item" style="grid-template-columns:1fr auto;cursor:default"><div><b>' + esc(c.phrase) + '</b><div class="meta"><span>' + esc(c.id) + '</span><span>' + esc(c.source) + '</span><span>valid until ' + esc(c.expires) + '</span></div></div>' + (admin ? '<button class="btn sm danger" data-act="delc" data-id="' + c.id + '">Delete</button>' : '') + '</div>'; }).join('') + '</div>';
+      if (admin) h += '<div class="card grid" style="margin-top:14px;max-width:720px"><h3>Add evidence</h3><input type="text" id="c-phrase" placeholder="Exact approved phrase"><input type="text" id="c-src" placeholder="Source document"><input type="date" id="c-exp"><div><button class="btn primary" data-act="addc">Add evidence</button></div></div>';
+      h += '<h3 style="margin-top:22px">Competitors (comparison needs Legal)</h3><p class="mono" style="margin-top:6px">' + esc(k.competitors.join(', ')) + '</p><h3 style="margin-top:18px">Confidential names</h3><p class="mono" style="margin-top:6px">' + (role === 'creator' ? '••••••  (visible to managers, reviewers and admins)' : esc(k.confidentialTerms.join(', '))) + '</p>';
+    } else if (t === 'assets') {
+      h += '<h3>Colour palette</h3><div class="row" style="margin:10px 0 18px">' + k.palette.map(function (p) { return '<div class="card" style="padding:10px;width:150px"><span class="sw" style="width:100%;height:44px;display:block;background:' + p.hex + '"></span><b>' + esc(p.name) + '</b><div class="mono muted">' + p.hex + '</div><div class="muted">' + esc(p.role) + '</div></div>'; }).join('') + '</div><h3>Fonts</h3><p style="margin:6px 0 18px">' + esc(k.fonts.join(', ')) + '</p><h3>Image rules</h3><p class="muted" style="margin-top:6px">Minimum width ' + k.image.minWidth + ' px · max ' + Math.round(k.image.maxBytes / 1024) + ' KB · ratios ' + k.image.ratios.map(function (r) { return r.n; }).join(', ') + '</p>';
+    } else {
+      h += '<div class="card grid" style="max-width:820px"><h3>Export</h3><p class="muted">The whole brand kit as JSON. Select and copy it; version it in your own repository.</p><textarea id="kit-out" rows="8" readonly>' + esc(JSON.stringify(k, null, 1)) + '</textarea><div class="row"><button class="btn" data-act="copykit">Copy to clipboard</button></div></div>';
+      if (admin) h += '<div class="card grid" style="max-width:820px;margin-top:14px"><h3>Import</h3><p class="muted">Paste a brand kit JSON or choose a file. It replaces the current kit after validation.</p><input type="file" id="kit-file" accept=".json,application/json"><textarea id="kit-in" rows="6" placeholder="{ &quot;guidelines&quot;: [...], &quot;facts&quot;: [...], ... }"></textarea><div class="row"><button class="btn primary" data-act="importkit">Validate and import</button><button class="btn danger" data-act="resetdemo">Reset all demo data</button></div></div>';
+    }
+    return h;
+  }
+
+  // ----- about -----
+  function viewAbout() {
+    var ev = []; state.contents.forEach(function (c) { c.history.forEach(function (e) { ev.push({ at: e.at, by: e.by, text: e.text, t: c.title }); }); });
+    ev.sort(function (a, b) { return a.at < b.at ? 1 : -1; });
+    return '<div class="page-head"><div><h1>Trust, AI disclosure and audit</h1><p>What BrandGuard does with your content, which services it uses, and a record of what people decided.</p></div></div><div class="grid g2"><div class="card prose"><h3>AI and external services</h3><p style="margin-top:8px"><b>This build makes no network requests with your content and calls no AI model.</b> Every finding comes from deterministic rules and your own brand library, so each result can be explained and repeated.</p><ul><li>Review engine: plain JavaScript in this page (<span class="mono">engine.js</span>).</li><li>Suggestions: rule-generated replacements, never auto-applied. Writers choose.</li><li>Image checks: size, ratio and colour sampling with the browser canvas, on your device.</li><li>Storage: your browser\'s local storage. Clearing site data removes it.</li><li>Fonts: loaded from Google Fonts for display only. No content is sent.</li></ul><p>If an organisation adds an AI model for rewriting or document understanding, it should appear here with its provider and data-retention terms, run only on non-confidential text unless approved, and mark every AI-written suggestion as such.</p></div>' +
+      '<div class="card prose"><h3>Human control</h3><ul><li><b>Creators</b> write, apply or dismiss suggestions, and submit. Dismissing a major finding needs a written reason.</li><li><b>Managers</b> approve or request changes. They cannot approve their own content.</li><li><b>Reviewers</b> (Legal, Brand) are required when claims, facts or confidentiality are involved. Only they can waive a blocker.</li><li><b>Admins</b> maintain the brand library and publish approved items.</li><li>Approvals are tied to one version. Editing resets them.</li><li>Confidential guidelines and codenames are hidden from Creators.</li></ul><p class="muted">This demo lets you switch role from the top bar. A production deployment needs real sign-in and server-side enforcement.</p></div></div>' +
+      '<div class="card" style="margin-top:16px"><h3>Audit log</h3><div class="tw"><table><thead><tr><th>When</th><th>Who</th><th>Content</th><th>Event</th></tr></thead><tbody>' + ev.slice(0, 40).map(function (e) { return '<tr><td>' + ago(e.at) + '</td><td>' + esc(user(e.by).name) + '</td><td>' + esc(e.t) + '</td><td>' + esc(e.text) + '</td></tr>'; }).join('') + '</tbody></table></div></div>' +
+      '<div class="card prose" style="margin-top:16px"><h3>Limits you should know</h3><ul><li>Rules catch what the brand library describes. They do not judge truth beyond approved facts or understand context such as irony.</li><li>Image checks cannot see what a picture shows. A human still judges composition, logo use and people.</li><li>Heuristic findings (reading level, pillars, image palette) show a lower confidence and are easy to dismiss with a reason. Those reasons feed the unclear-guideline insight.</li><li>HTML contrast is checked only where text and background colours appear together in the same style.</li></ul></div>';
+  }
+
+  // ---------- events ----------
+  function selectedFinding(key) { var c = cnt(ui.id); return c && reviewOf(c, ui.editing ? ui.draft : null).findings.filter(function (f) { return f.key === key; })[0]; }
+  document.addEventListener('click', function (ev) {
+    var el = ev.target.closest('[data-act]'); if (!el) return;
+    var a = el.getAttribute('data-act'), c = cnt(ui.id), key = el.getAttribute('data-key'), f;
+    switch (a) {
+      case 'nav': ui.view = el.getAttribute('data-v'); if (el.getAttribute('data-lt')) ui.libTab = el.getAttribute('data-lt'); ui.editing = false; ui.pending = null; try { history.replaceState(null, '', '#' + ui.view); } catch (e) { } render(); window.scrollTo(0, 0); break;
+      case 'filter': ui.filter = el.getAttribute('data-f'); render(); break;
+      case 'open': ui.view = 'content'; ui.id = el.getAttribute('data-id'); ui.tab = 'content'; ui.editing = false; ui.pending = null; ui.diffV = null; render(); window.scrollTo(0, 0); break;
+      case 'newc': ui.view = 'new'; render(); break;
+      case 'create': createContent(); break;
+      case 'tab': ui.tab = el.getAttribute('data-t'); render(); break;
+      case 'libtab': ui.libTab = el.getAttribute('data-t'); render(); break;
+      case 'edit': ui.editing = true; ui.draft = latest(c).body; render(); break;
+      case 'canceledit': ui.editing = false; render(); break;
+      case 'savever': if (ui.draft === latest(c).body) { toast('No changes to save'); break; } newVersion(c, ui.draft, 'Edited'); ui.editing = false; save(); toast('Saved as v' + latest(c).v); render(); break;
+      case 'jump': var card = document.querySelector('[data-fkey="' + CSS.escape(key) + '"]'); if (card) { card.scrollIntoView({ block: 'center', behavior: 'smooth' }); card.classList.add('flash'); setTimeout(function () { card.classList.remove('flash'); }, 1400); } break;
+      case 'toggleres': ui.resolvedOpen = !ui.resolvedOpen; updatePanels(); break;
+      case 'apply': f = selectedFinding(key); var inp = document.querySelector('[data-alt="' + CSS.escape(key) + '"]'); applyFinding(c, f, inp && inp.value); break;
+      case 'dismiss': ui.pending = { key: key, kind: 'dismissed' }; updatePanels(); break;
+      case 'waive': ui.pending = { key: key, kind: 'waived' }; updatePanels(); break;
+      case 'cancelpend': ui.pending = null; updatePanels(); break;
+      case 'confirmdec': f = selectedFinding(key); var rs = $('#reason').value.trim();
+        if ((ui.pending.kind === 'waived' || f.severity === 'major') && !rs) { toast('A reason is required'); break; }
+        decide(c, f, ui.pending.kind, rs); ui.pending = null; refreshStatus(c); save(); render(); break;
+      case 'reopenf': delete c.decisions[key]; hist(c, 'Reopened a finding'); refreshStatus(c); save(); render(); break;
+      case 'unclear': f = selectedFinding(key); logOutcome(c, f, 'open', true); toast('Thanks. The brand team will see this in Insights.'); save(); break;
+      case 'cmfor': ui.tab = 'discussion'; ui.cmFinding = key; render(); setTimeout(function () { var t = $('#cmt'); t && t.focus(); }, 0); break;
+      case 'comment': var tx = $('#cmt').value.trim(); if (!tx) break; c.comments.push({ id: uid('k'), by: state.me, at: new Date().toISOString(), text: tx, findingKey: ui.cmFinding || null }); ui.cmFinding = null; hist(c, 'Commented'); save(); render(); break;
+      case 'submit': var g = E.gate(reviewOf(c).findings, c.decisions); if (!g.ok) break; c.status = 'in_review'; hist(c, 'Submitted for review (v' + latest(c).v + ')'); refreshStatus(c); save(); toast('Submitted. ' + requiredRoles(c).roles.map(function (r) { return ROLE[r]; }).join(' and ') + ' approval needed.'); render(); break;
+      case 'withdraw': c.status = 'draft'; hist(c, 'Withdrew from review'); save(); render(); break;
+      case 'approve': case 'reqchg': var role = myApprovalRole(c), note = ($('#apnote') || {}).value || '';
+        if (a === 'reqchg' && !note.trim()) { toast('Add a note so the author knows what to change'); break; }
+        c.approvals.push({ by: state.me, role: role, decision: a === 'approve' ? 'approved' : 'changes', note: note, at: new Date().toISOString(), version: latest(c).v });
+        hist(c, a === 'approve' ? 'Approved as ' + role : 'Requested changes'); if (a === 'reqchg') c.comments.push({ id: uid('k'), by: state.me, at: new Date().toISOString(), text: note });
+        c.status = 'in_review'; refreshStatus(c); save(); toast(a === 'approve' ? 'Approval recorded' : 'Changes requested'); render(); break;
+      case 'publish': var rr = reviewOf(c), gg = E.gate(rr.findings, c.decisions); if (!gg.ok) { toast('New blockers appeared since approval. Publish stopped.'); break; } c.status = 'published'; hist(c, 'Published'); save(); toast('Published (simulated)'); render(); break;
+      case 'reopen': c.status = 'draft'; hist(c, 'Reopened as draft'); save(); render(); break;
+      case 'diffv': ui.diffV = +el.getAttribute('data-v'); render(); break;
+      case 'restore': var rv = c.versions[+el.getAttribute('data-v') - 1]; newVersion(c, rv.body, 'Restored v' + rv.v); save(); render(); break;
+      case 'clearsample': state.log = state.log.filter(function (x) { return !x.sample; }); save(); render(); break;
+      case 'delg': state.kit.guidelines = state.kit.guidelines.filter(function (x) { return x.id !== el.getAttribute('data-id'); }); save(); render(); break;
+      case 'addg': var gi = $('#g-id').value.trim(), gt = $('#g-title').value.trim(); if (!gi || !gt) { toast('ID and title are required'); break; } if (state.kit.guidelines.some(function (x) { return x.id === gi; })) { toast('That ID exists'); break; } state.kit.guidelines.push({ id: gi, section: $('#g-sec').value || 'General', title: gt, text: $('#g-text').value, confidential: $('#g-conf').checked }); save(); render(); break;
+      case 'delt': state.kit.terms = state.kit.terms.filter(function (x) { return x.id !== el.getAttribute('data-id'); }); save(); render(); break;
+      case 'addt': var av = $('#t-avoid').value.trim(); if (!av) { toast('Enter the term to avoid'); break; } var pr = $('#t-prefer').value.trim(); state.kit.terms.push({ id: 'x' + (++state.seq), pattern: '\\b' + av.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', avoid: av, prefer: pr || null, category: $('#t-cat').value, severity: $('#t-sev').value, guideline: 'G-TERM-1', reason: $('#t-why').value || 'Custom term added by an admin.', guidance: pr ? '' : 'Rephrase this.' }); save(); toast('Term added. It applies immediately.'); render(); break;
+      case 'delc': state.kit.approvedClaims = state.kit.approvedClaims.filter(function (x) { return x.id !== el.getAttribute('data-id'); }); save(); render(); break;
+      case 'addc': var ph = $('#c-phrase').value.trim(); if (!ph) { toast('Enter the approved phrase'); break; } state.kit.approvedClaims.push({ id: 'EV-' + (++state.seq), phrase: ph, source: $('#c-src').value || 'Unspecified', expires: $('#c-exp').value || '2099-12-31' }); save(); render(); break;
+      case 'copykit': var ta = $('#kit-out'); ta.select(); try { navigator.clipboard.writeText(ta.value).then(function () { toast('Copied'); }, function () { toast('Press Ctrl+C to copy'); }); } catch (e) { toast('Press Ctrl+C to copy'); } break;
+      case 'importkit': importKit($('#kit-in').value); break;
+      case 'resetdemo': state = fresh(); save(); ui.view = 'queue'; toast('Demo data restored'); render(); break;
+    }
+  });
+  function importKit(txt) {
+    try {
+      var k = JSON.parse(txt), need = ['guidelines', 'facts', 'terms', 'palette'];
+      need.forEach(function (n) { if (!Array.isArray(k[n])) throw new Error('"' + n + '" must be a list'); });
+      ['claims', 'approvedClaims', 'competitors', 'confidentialTerms', 'requirements', 'pillars', 'fonts', 'acronyms'].forEach(function (n) { if (!Array.isArray(k[n])) k[n] = []; });
+      k.settings = k.settings || clone(S.kit.settings); k.image = k.image || clone(S.kit.image); state.kit = k; save(); toast('Brand kit imported: ' + k.guidelines.length + ' guidelines, ' + k.facts.length + ' facts'); render();
+    } catch (e) { toast('Import failed: ' + e.message); }
+  }
+  document.addEventListener('change', function (ev) {
+    var t = ev.target, c = t.getAttribute('data-chg');
+    if (c === 'who') { state.me = t.value; ui.editing = false; ui.pending = null; save(); render(); }
+    else if (c === 'newfmt') { var tt = $('#n-title').value, bb = ($('#n-body') || {}).value; ui.newFmt = t.value; render(); $('#n-title').value = tt; if (bb && $('#n-body')) $('#n-body').value = bb; }
+    else if (t.id === 'n-file' && t.files[0]) { var fr = new FileReader(), fl = t.files[0]; fr.onload = function () { $('#n-body').value = fr.result; var n = fl.name.toLowerCase(); ui.newFmt = /\.html?$/.test(n) ? 'html' : /\.(md|markdown)$/.test(n) ? 'markdown' : 'text'; $('#n-fmt').value = ui.newFmt; if (!$('#n-title').value) $('#n-title').value = fl.name.replace(/\.[^.]+$/, ''); }; fr.readAsText(fl); }
+    else if (t.id === 'kit-file' && t.files[0]) { var fr2 = new FileReader(); fr2.onload = function () { $('#kit-in').value = fr2.result; }; fr2.readAsText(t.files[0]); }
+    else if (t.getAttribute('data-fact')) { var fa = state.kit.facts.filter(function (x) { return x.id === t.getAttribute('data-fact'); })[0], kk = t.getAttribute('data-k'); fa[kk] = kk === 'value' ? parseFloat(t.value) : t.value; save(); toast('Fact updated. New reviews use it immediately.'); }
+  });
+  document.addEventListener('input', function (ev) { if (ev.target.getAttribute('data-inp') === 'draft') { ui.draft = ev.target.value; var c = cnt(ui.id), r = reviewOf(c, ui.draft); $('#scorebar').innerHTML = scorebar(r); var ae = document.activeElement; $('#side').innerHTML = sideHtml(c); updateDirty(); if (ae && ae.id === 'editor') ae.focus(); } });
+  document.addEventListener('keydown', function (ev) { if ((ev.key === 'Enter' || ev.key === ' ') && ev.target.matches && ev.target.matches('mark.m')) { ev.preventDefault(); ev.target.click(); } });
+  window.addEventListener('hashchange', function () { var t = location.hash.slice(1); if (['queue', 'insights', 'library', 'about'].indexOf(t) > -1 && t !== ui.view) { ui.view = t; render(); } });
+  var h0 = location.hash.slice(1); if (['queue', 'insights', 'library', 'about'].indexOf(h0) > -1) ui.view = h0;
+  render();
+  window.__bg = { state: function () { return state; }, ui: ui };
+})();
+
+</script>
